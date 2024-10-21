@@ -1,0 +1,6 @@
+# logs
+/bochs.log
+*.log
+logs/
+# build files
+obj/
