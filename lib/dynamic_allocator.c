@@ -103,7 +103,7 @@ void initialize_dynamic_allocator(uint32 daStart, uint32 initSizeOfAllocatedSpac
 
 	//TODO: [PROJECT'24.MS1 - #04] [3] DYNAMIC ALLOCATOR - initialize_dynamic_allocator
 	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("initialize_dynamic_allocator is not implemented yet");
+	//panic("initialize_dynamic_allocator is not implemented yet");
 	//Your Code is Here...
 
 }
@@ -114,7 +114,7 @@ void set_block_data(void* va, uint32 totalSize, bool isAllocated)
 {
 	//TODO: [PROJECT'24.MS1 - #05] [3] DYNAMIC ALLOCATOR - set_block_data
 	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("set_block_data is not implemented yet");
+	//panic("set_block_data is not implemented yet");
 	//Your Code is Here...
 }
 
@@ -122,6 +122,21 @@ void set_block_data(void* va, uint32 totalSize, bool isAllocated)
 //=========================================
 // [3] ALLOCATE BLOCK BY FIRST FIT:
 //=========================================
+bool alloc(void *current_free_block,uint32 required_size)
+{
+	bool is_enough_space=0;
+	uint32 address_size=get_block_size(current_free_block);
+	if(address_size>=required_size)
+	{
+		is_enough_space=1;
+		set_block_data(current_free_block,address_size,1);
+		if(address_size-required_size>=DYN_ALLOC_MIN_BLOCK_SIZE)
+		{
+			set_block_data((current_free_block+required_size),address_size-required_size,0);
+		}
+	}
+		return is_enough_space;
+}
 void *alloc_block_FF(uint32 size)
 {
 	//==================================================================================
@@ -144,9 +159,29 @@ void *alloc_block_FF(uint32 size)
 
 	//TODO: [PROJECT'24.MS1 - #06] [3] DYNAMIC ALLOCATOR - alloc_block_FF
 	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("alloc_block_FF is not implemented yet");
+	//panic("alloc_block_FF is not implemented yet");
 	//Your Code is Here...
+	if(size==0)
+	return NULL;
+	uint32 required_size=size+DYN_ALLOC_MIN_BLOCK_SIZE;
+	bool found_fitting_size=0;
+	struct BlockElement *current_free_block=freeBlocksList.lh_first;
+	while((void*)current_free_block!=NULL)
+	{
+		if(alloc(current_free_block,required_size)==1)
+		{
+			found_fitting_size=1;
+			break;
+		}
+		current_free_block=current_free_block->prev_next_info.le_next;
+	}
+	if(found_fitting_size==0)
+	{
+		sbrk(required_size);
+		return NULL;
+	}
 
+	return (void*)(current_free_block+DYN_ALLOC_MIN_BLOCK_SIZE/2);
 }
 //=========================================
 // [4] ALLOCATE BLOCK BY BEST FIT:
