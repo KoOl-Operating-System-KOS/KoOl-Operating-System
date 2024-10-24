@@ -38,7 +38,7 @@ int cut_paste_pages(uint32* page_directory, uint32 source_va, uint32 dest_va, ui
 //===============================
 //This function should copy-paste the given size from source_va to dest_va on the given page_directory
 //	Ranges DO NOT overlapped.
-//	If ANY of the destination pages exists with READ ONLY permission, deny the entire process and return -1.
+//	If ANY of the destinations exists with READ ONLY permission, deny the entire process and return -1.
 //	If the page table at any destination page in the range is not exist, it should create it
 //	If ANY of the destination pages doesn't exist, create it with the following permissions then copy.
 //	Otherwise, just copy!
