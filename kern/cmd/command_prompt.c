@@ -456,13 +456,67 @@ int execute_command(char *command_string)
 int process_command(int number_of_arguments, char** arguments)
 {
 	//TODO: [PROJECT'24.MS1 - #01] [1] PLAY WITH CODE! - process_command
-
+	//reset foundCommands list
+	foundCommands.lh_first=NULL;
+	foundCommands.lh_last=NULL;
+	foundCommands.size=0;
+	int found=-1;
 	for (int i = 0; i < NUM_OF_COMMANDS; i++)
 	{
 		if (strcmp(arguments[0], commands[i].name) == 0)
 		{
-			return i;
-		}
-	}
-	return CMD_INVALID;
+            // Case 1: Correct number of arguments
+            if (number_of_arguments-1 == commands[i].num_of_args)
+                return i;
+
+            // Case 2: Invalid number of arguments
+            else{
+            	cprintf("Invalid nuber of arguments\n");
+            	found=i;
+            }
+
+        }
+        if(found!=-1){
+        	struct Command *new_com = &commands[found];
+            foundCommands.lh_first = new_com;
+            foundCommands.lh_last = new_com;
+            foundCommands.size++;
+        	return CMD_INV_NUM_ARGS;
+        }
+
+        // Case 3: Subsequence match
+        int first_command_ptr = 0, second_command_ptr = 0;
+        while (arguments[0][first_command_ptr] != '\0' && commands[i].name[second_command_ptr] != '\0')
+        {
+            if (arguments[0][first_command_ptr] == commands[i].name[second_command_ptr])
+                first_command_ptr++;
+            second_command_ptr++;
+        }
+
+
+        if (arguments[0][first_command_ptr] == '\0') {
+            struct Command *new_com = &commands[i];
+            if (foundCommands.size==0) {
+            cprintf(new_com->name);
+            cprintf("  1st valid substring of arguments \n");
+                foundCommands.lh_first = new_com;
+                foundCommands.lh_last = new_com;
+            } else {
+            	 cprintf(new_com->name);
+            	cprintf("  valid substring of arguments\n");
+                new_com->prev_next_info.le_prev = foundCommands.lh_last;
+                foundCommands.lh_last->prev_next_info.le_next = new_com;
+                foundCommands.lh_last = new_com;
+                foundCommands.lh_last->prev_next_info.le_next=NULL;
+            }
+
+            foundCommands.size += 1;
+        }
+    }
+     if(foundCommands.size>0) return CMD_MATCHED;
+
+    // Case 4: No match was found at all
+    return CMD_INVALID;
 }
+
+
