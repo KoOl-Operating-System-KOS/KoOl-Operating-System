@@ -112,10 +112,9 @@ void initialize_dynamic_allocator(uint32 daStart, uint32 initSizeOfAllocatedSpac
 //==================================
 void set_block_data(void* va, uint32 totalSize, bool isAllocated)
 {
-	//TODO: [PROJECT'24.MS1 - #05] [3] DYNAMIC ALLOCATOR - set_block_data
-	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	//panic("set_block_data is not implemented yet");
-	//Your Code is Here...
+	uint32 meta_data = totalSize | (uint32)isAllocated;
+	*((uint32*)va-1) = meta_data;
+	*(uint32*)((char*)va - totalSize - 4) = meta_data;
 }
 
 
