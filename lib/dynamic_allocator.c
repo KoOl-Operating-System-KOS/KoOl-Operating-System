@@ -104,7 +104,19 @@ void initialize_dynamic_allocator(uint32 daStart, uint32 initSizeOfAllocatedSpac
 	//TODO: [PROJECT'24.MS1 - #04] [3] DYNAMIC ALLOCATOR - initialize_dynamic_allocator
 	//COMMENT THE FOLLOWING LINE BEFORE START CODING
 	//panic("initialize_dynamic_allocator is not implemented yet");
-	//Your Code is Here...
+
+	//Initializing BEG_Block and END_Block
+	uint32* BEG_Block = (uint32*)daStart;
+	uint32* Free_Block = (uint32*)(daStart + 2*sizeof(uint32));
+	uint32* END_Block = (uint32*)(daStart + initSizeOfAllocatedSpace - sizeof(uint32));
+	//Setting the meta data for BEG_Block,END_Block blocks and Free_Block
+	*BEG_Block = 1;
+	*END_Block = 1;
+	set_block_data((void*)(Free_Block),initSizeOfAllocatedSpace - DYN_ALLOC_MIN_BLOCK_SIZE, 0);
+	//Initializing the freeBlocksList
+	LIST_INIT(&freeBlocksList);
+	LIST_INSERT_TAIL(&freeBlocksList, (struct BlockElement*)Free_Block);
+	print_blocks_list(freeBlocksList);
 
 }
 //==================================
@@ -114,28 +126,35 @@ void set_block_data(void* va, uint32 totalSize, bool isAllocated)
 {
 	uint32 meta_data = totalSize | (uint32)isAllocated;
 	*((uint32*)va-1) = meta_data;
-	*(uint32*)((char*)va - totalSize - 4) = meta_data;
+	*(uint32*)((char*)(va + totalSize - 8)) = meta_data;
 }
 
 
 //=========================================
 // [3] ALLOCATE BLOCK BY FIRST FIT:
 //=========================================
-bool alloc(void *current_free_block,uint32 required_size)
+
+bool alloc(struct BlockElement *current_free_block,uint32 required_size)
 {
-	bool is_enough_space=0;
-	uint32 address_size=get_block_size(current_free_block);
-	if(address_size>=required_size)
-	{
-		is_enough_space=1;
-		set_block_data(current_free_block,address_size,1);
-		if(address_size-required_size>=DYN_ALLOC_MIN_BLOCK_SIZE)
-		{
-			set_block_data((current_free_block+required_size),address_size-required_size,0);
-		}
-	}
-		return is_enough_space;
+    bool is_enough_space=0;
+    void *start_of_block=(void*)(char*)(current_free_block);
+    uint32 address_size=get_block_size(start_of_block);
+    if(address_size>=required_size)
+    {
+        is_enough_space=1;
+        set_block_data(start_of_block,address_size,1);
+        if(address_size-required_size>=DYN_ALLOC_MIN_BLOCK_SIZE)
+        {
+            struct BlockElement* extra_space = (struct BlockElement*)((char*)(start_of_block+required_size));
+            LIST_INSERT_BEFORE(&freeBlocksList,current_free_block,extra_space);
+            set_block_data(start_of_block,required_size,1);
+            set_block_data((void*)(char*)(start_of_block+required_size),address_size-required_size,0);
+        }
+        LIST_REMOVE(&freeBlocksList,current_free_block);
+    }
+        return is_enough_space;
 }
+
 void *alloc_block_FF(uint32 size)
 {
 	//==================================================================================
@@ -161,10 +180,11 @@ void *alloc_block_FF(uint32 size)
 	//panic("alloc_block_FF is not implemented yet");
 	//Your Code is Here...
 	if(size==0)
-	return NULL;
+	    return NULL;
 	uint32 required_size=size+DYN_ALLOC_MIN_BLOCK_SIZE;
 	bool found_fitting_size=0;
 	struct BlockElement *current_free_block=freeBlocksList.lh_first;
+	void *start_of_block=(void*)(char*)(current_free_block);
 	while((void*)current_free_block!=NULL)
 	{
 		if(alloc(current_free_block,required_size)==1)
@@ -174,13 +194,18 @@ void *alloc_block_FF(uint32 size)
 		}
 		current_free_block=current_free_block->prev_next_info.le_next;
 	}
-	if(found_fitting_size==0)
-	{
-		sbrk(required_size);
-		return NULL;
-	}
+	 if (found_fitting_size == 0)
+	 {
+		  void *new_block = sbrk(required_size);
+		  if (new_block == (void *)-1)
+		  {
+			  return NULL;
+		  }
+		  set_block_data(new_block, required_size, 1);
+		  return new_block;
+	 }
 
-	return (void*)(current_free_block+DYN_ALLOC_MIN_BLOCK_SIZE/2);
+	return start_of_block;
 }
 //=========================================
 // [4] ALLOCATE BLOCK BY BEST FIT:
