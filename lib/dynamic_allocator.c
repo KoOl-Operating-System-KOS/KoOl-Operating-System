@@ -129,6 +129,23 @@ void set_block_data(void* va, uint32 totalSize, bool isAllocated)
 // [3] ALLOCATE BLOCK BY FIRST FIT:
 //=========================================
 
+void add_free_block(void* va, uint32 size){
+
+	set_block_data(va, size, 0);
+
+	if(LIST_SIZE(&freeBlocksList) == 0 || (void*)LIST_LAST(&freeBlocksList) < va)
+	{
+		LIST_INSERT_TAIL(&freeBlocksList, (struct BlockElement*)va);
+	}
+	else
+	{
+		struct BlockElement* cur;
+		LIST_FOREACH (cur, &freeBlocksList) if((void*)cur > va) break;
+		LIST_INSERT_BEFORE(&freeBlocksList, cur, (struct BlockElement*)va);
+	}
+
+}
+
 bool alloc(struct BlockElement *current_free_block, uint32 required_size)
 {
     bool is_enough_space = 0;
@@ -156,6 +173,8 @@ bool alloc(struct BlockElement *current_free_block, uint32 required_size)
 
 void *alloc_block_FF(uint32 size)
 {
+	if(size == 0) return NULL;
+
 	//==================================================================================
 	//DON'T CHANGE THESE LINES==========================================================
 	//==================================================================================
@@ -189,8 +208,8 @@ void *alloc_block_FF(uint32 size)
 
 	if (!found_fitting_size)
 	{
-	 current_free_block = (struct BlockElement*) sbrk(required_size);
-	 if (current_free_block == (struct BlockElement*)-1) return NULL;
+		current_free_block = (struct BlockElement*) sbrk(required_size);
+		if (current_free_block == (struct BlockElement*)-1) return NULL;
 	}
 
 	return (void*)current_free_block;
@@ -200,6 +219,25 @@ void *alloc_block_FF(uint32 size)
 //=========================================
 void *alloc_block_BF(uint32 size)
 {
+	if(size == 0) return NULL;
+
+	//==================================================================================
+	//DON'T CHANGE THESE LINES==========================================================
+	//==================================================================================
+	{
+		if (size % 2 != 0) size++;	//ensure that the size is even (to use LSB as allocation flag)
+		if (size < DYN_ALLOC_MIN_BLOCK_SIZE)
+			size = DYN_ALLOC_MIN_BLOCK_SIZE;
+		if (!is_initialized)
+		{
+			uint32 required_size = size + 2*sizeof(int) /*header & footer*/ + 2*sizeof(int) /*da begin & end*/ ;
+			uint32 da_start = (uint32)sbrk(ROUNDUP(required_size, PAGE_SIZE)/PAGE_SIZE);
+			uint32 da_break = (uint32)sbrk(0);
+			initialize_dynamic_allocator(da_start, da_break - da_start);
+		}
+	}
+	//==================================================================================
+	//==================================================================================
 
 	uint32 required_size = size + DYN_ALLOC_MIN_BLOCK_SIZE;
 	uint32 min_diffrience = (1 << 30);
@@ -262,16 +300,7 @@ void free_block(void *va)
     	set_block_data(prev_block, prev_size + cur_size, 0);
     }
     else{
-    	set_block_data(va, cur_size, 0);
-
-    	if(LIST_SIZE(&freeBlocksList) == 0 || (void*)LIST_LAST(&freeBlocksList) < va){
-    		LIST_INSERT_TAIL(&freeBlocksList, (struct BlockElement*)va);
-    		return;
-    	}
-
-    	struct BlockElement* cur;
-    	LIST_FOREACH (cur, &freeBlocksList) if((void*)cur > va) break;
-    	LIST_INSERT_BEFORE(&freeBlocksList, cur, (struct BlockElement*)va);
+    	add_free_block(va, cur_size);
     }
 
 }
@@ -281,10 +310,51 @@ void free_block(void *va)
 //=========================================
 void *realloc_block_FF(void* va, uint32 new_size)
 {
-	//TODO: [PROJECT'24.MS1 - #08] [3] DYNAMIC ALLOCATOR - realloc_block_FF
-	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("realloc_block_FF is not implemented yet");
-	//Your Code is Here...
+	//TODO: TEST FIRST FIT REALLOCATION
+
+	if(va == NULL) return alloc_block_FF(new_size);
+	if(new_size == 0){
+		free_block(va);
+		return NULL;
+	}
+
+	uint32 required_size = new_size + DYN_ALLOC_MIN_BLOCK_SIZE;
+	uint32 prev_size = get_block_size(va);
+
+	if(required_size <= prev_size){
+		if(prev_size - required_size >= 2 * DYN_ALLOC_MIN_BLOCK_SIZE){
+
+			set_block_data(va, required_size, 1);
+			void* extra_space = (void*)((char*)va + required_size);
+			add_free_block(extra_space, prev_size - required_size);
+
+		}
+		return va;
+	}
+
+	void* next_block = (void*)((char*)va + prev_size);
+	uint32 next_block_size = get_block_size(next_block);
+
+	if(is_free_block(next_block) && prev_size + next_block_size >= required_size)
+	{
+		LIST_REMOVE(&freeBlocksList,(struct BlockElement*)next_block);
+
+		if(prev_size + next_block_size - required_size >= 2 * DYN_ALLOC_MIN_BLOCK_SIZE)
+		{
+			set_block_data(va, required_size, 1);
+			void* extra_space = (void*)((char*)va + required_size);
+			add_free_block(extra_space, prev_size + next_block_size - required_size);
+		}
+		else
+		{
+			set_block_data(va, prev_size + next_block_size, 1);
+		}
+
+		return va;
+	}
+
+	free_block(va);
+	return alloc_block_FF(required_size);
 
 }
 
@@ -296,8 +366,54 @@ void *realloc_block_FF(void* va, uint32 new_size)
 //=========================================
 void *alloc_block_WF(uint32 size)
 {
-	panic("alloc_block_WF is not implemented yet");
-	return NULL;
+	if(size == 0) return NULL;
+
+	//==================================================================================
+	//DON'T CHANGE THESE LINES==========================================================
+	//==================================================================================
+	{
+		if (size % 2 != 0) size++;	//ensure that the size is even (to use LSB as allocation flag)
+		if (size < DYN_ALLOC_MIN_BLOCK_SIZE)
+			size = DYN_ALLOC_MIN_BLOCK_SIZE;
+		if (!is_initialized)
+		{
+			uint32 required_size = size + 2*sizeof(int) /*header & footer*/ + 2*sizeof(int) /*da begin & end*/ ;
+			uint32 da_start = (uint32)sbrk(ROUNDUP(required_size, PAGE_SIZE)/PAGE_SIZE);
+			uint32 da_break = (uint32)sbrk(0);
+			initialize_dynamic_allocator(da_start, da_break - da_start);
+		}
+	}
+	//==================================================================================
+	//==================================================================================
+
+	uint32 required_size = size + DYN_ALLOC_MIN_BLOCK_SIZE;
+	uint32 max_diffrience = 0;
+	bool found_fitting_size = 0;
+	struct BlockElement *worst_block;
+	struct BlockElement *current_free_block;
+
+	LIST_FOREACH(current_free_block, &freeBlocksList){
+		if(get_block_size(current_free_block) < required_size) continue;
+
+		if(get_block_size(current_free_block) - required_size >= max_diffrience){
+			max_diffrience = get_block_size(current_free_block) - required_size;
+			found_fitting_size = 1;
+			worst_block = current_free_block;
+		}
+	}
+
+	if (found_fitting_size == 0)
+	{
+		worst_block = (struct BlockElement *)sbrk(required_size);
+		if (worst_block == (struct BlockElement *)-1)
+		  return NULL;
+	}
+	else
+	{
+		alloc(worst_block, required_size);
+	}
+
+	return (void*)worst_block;
 }
 
 //=========================================
@@ -305,6 +421,56 @@ void *alloc_block_WF(uint32 size)
 //=========================================
 void *alloc_block_NF(uint32 size)
 {
-	panic("alloc_block_NF is not implemented yet");
-	return NULL;
+	if(size == 0) return NULL;
+
+	//==================================================================================
+	//DON'T CHANGE THESE LINES==========================================================
+	//==================================================================================
+	{
+		if (size % 2 != 0) size++;	//ensure that the size is even (to use LSB as allocation flag)
+		if (size < DYN_ALLOC_MIN_BLOCK_SIZE)
+			size = DYN_ALLOC_MIN_BLOCK_SIZE ;
+		if (!is_initialized)
+		{
+			uint32 required_size = size + 2*sizeof(int) /*header & footer*/ + 2*sizeof(int) /*da begin & end*/ ;
+			uint32 da_start = (uint32)sbrk(ROUNDUP(required_size, PAGE_SIZE)/PAGE_SIZE);
+			uint32 da_break = (uint32)sbrk(0);
+			initialize_dynamic_allocator(da_start, da_break - da_start);
+		}
+	}
+	//==================================================================================
+	//==================================================================================
+
+	uint32 required_size = size + DYN_ALLOC_MIN_BLOCK_SIZE;
+
+	static struct BlockElement *NF_free_block = NULL; //static pointer to keep last order
+
+	// for the worst case, the pointer will reach the end then cycle to the begining in the second iteration
+	for(int i = 0; i < 2; i++){
+
+		// if the pointer is NULL (reached end of the list), restart from the begining
+		if(NF_free_block == NULL) NF_free_block = LIST_FIRST(&freeBlocksList);
+
+		// search until finding a fit or reaching the end of the list
+		while(NF_free_block != NULL){
+
+			if(alloc(NF_free_block, required_size))
+			{
+				return NF_free_block;
+			}
+
+			NF_free_block = LIST_NEXT(NF_free_block);
+		}
+	}
+
+	// if no fit is matched after the loop, then there is no possible matches, call sbrk
+	NF_free_block = sbrk(required_size);
+
+	if (NF_free_block == (void*)-1)
+	{
+		NF_free_block = LIST_FIRST(&freeBlocksList); // restart the pointer to maintain the NF
+		return NULL;
+	}
+
+	return NF_free_block;
 }
