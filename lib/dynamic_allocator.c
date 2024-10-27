@@ -80,6 +80,78 @@ void print_blocks_list(struct MemBlock_LIST list)
 ////********************************************************************************//
 
 //==================================================================================//
+//============================= HELPER FUNCTIONS ===================================//
+//==================================================================================//
+
+// adds a free block and merges it with adjacent free blocks if possible
+// (MAKE SURE PREVIOUS AND NEXT BLOCKS' DATA ARE SET CORRECTLY BEFORE CALLING)
+void add_free_block(void* va, uint32 size){
+
+	void *next_block = (void*)(((char*)va) + size);
+	void *prev_block = (void*)((uint32*)va - 1);
+
+	uint32 next_size = get_block_size(next_block);
+	uint32 prev_size = get_block_size(prev_block);
+
+	prev_block = (void*)(((char*)prev_block) - prev_size + 4);
+
+	if(is_free_block(next_block) && is_free_block(prev_block)){
+		LIST_REMOVE(&freeBlocksList,(struct BlockElement*)next_block);
+		va = prev_block;
+		set_block_data(prev_block, prev_size + size + next_size, 0);
+		return;
+	}
+	else if(is_free_block(prev_block)){
+		set_block_data(prev_block, prev_size + size, 0);
+		return;
+	}
+	else if(is_free_block(next_block)){
+		LIST_REMOVE(&freeBlocksList,(struct BlockElement*)next_block);
+		size = size + next_size;
+	}
+
+	set_block_data(va, size, 0);
+
+	if(LIST_SIZE(&freeBlocksList) == 0 || (void*)LIST_LAST(&freeBlocksList) < va)
+	{
+		LIST_INSERT_TAIL(&freeBlocksList, (struct BlockElement*)va);
+	}
+	else
+	{
+		struct BlockElement* cur;
+		LIST_FOREACH (cur, &freeBlocksList) if((void*)cur > va) break;
+		LIST_INSERT_BEFORE(&freeBlocksList, cur, (struct BlockElement*)va);
+	}
+}
+
+bool alloc(struct BlockElement *current_free_block, uint32 required_size)
+{
+    bool is_enough_space = 0;
+    void *start_of_block = (void*)(current_free_block);
+    uint32 block_size = get_block_size(start_of_block);
+
+    if(block_size >= required_size)
+    {
+        is_enough_space = 1;
+        LIST_REMOVE(&freeBlocksList, current_free_block);
+
+        if(block_size - required_size >= 2 * DYN_ALLOC_MIN_BLOCK_SIZE)
+        {
+            set_block_data(start_of_block, required_size, 1);
+            void* extra_space = (void*)((char*)start_of_block + required_size);
+            add_free_block(extra_space, block_size - required_size);
+        }
+        else
+        {
+        	set_block_data(start_of_block, block_size, 1);
+        }
+
+    }
+
+    return is_enough_space;
+}
+
+//==================================================================================//
 //============================ REQUIRED FUNCTIONS ==================================//
 //==================================================================================//
 
@@ -124,53 +196,9 @@ void set_block_data(void* va, uint32 totalSize, bool isAllocated)
 	*((uint32*)((char*)va + (totalSize - 2 * sizeof(uint32)))) = meta_data;
 }
 
-
 //=========================================
 // [3] ALLOCATE BLOCK BY FIRST FIT:
 //=========================================
-
-void add_free_block(void* va, uint32 size){
-
-	set_block_data(va, size, 0);
-
-	if(LIST_SIZE(&freeBlocksList) == 0 || (void*)LIST_LAST(&freeBlocksList) < va)
-	{
-		LIST_INSERT_TAIL(&freeBlocksList, (struct BlockElement*)va);
-	}
-	else
-	{
-		struct BlockElement* cur;
-		LIST_FOREACH (cur, &freeBlocksList) if((void*)cur > va) break;
-		LIST_INSERT_BEFORE(&freeBlocksList, cur, (struct BlockElement*)va);
-	}
-
-}
-
-bool alloc(struct BlockElement *current_free_block, uint32 required_size)
-{
-    bool is_enough_space = 0;
-    void *start_of_block = (void*)(current_free_block);
-    uint32 block_size = get_block_size(start_of_block);
-
-    if(block_size >= required_size)
-    {
-        is_enough_space = 1;
-        set_block_data(start_of_block, block_size, 1);
-
-        if(block_size - required_size >= 2 * DYN_ALLOC_MIN_BLOCK_SIZE)
-        {
-            struct BlockElement* extra_space = (struct BlockElement*)((char*)start_of_block + required_size);
-            LIST_INSERT_BEFORE(&freeBlocksList, current_free_block, extra_space);
-            set_block_data(start_of_block, required_size, 1);
-            set_block_data((void*)(extra_space), block_size - required_size, 0);
-        }
-
-        LIST_REMOVE(&freeBlocksList, current_free_block);
-    }
-
-    return is_enough_space;
-}
-
 void *alloc_block_FF(uint32 size)
 {
 	if(size == 0) return NULL;
@@ -214,6 +242,7 @@ void *alloc_block_FF(uint32 size)
 
 	return (void*)current_free_block;
 }
+
 //=========================================
 // [4] ALLOCATE BLOCK BY BEST FIT:
 //=========================================
@@ -274,35 +303,10 @@ void *alloc_block_BF(uint32 size)
 //===================================================
 void free_block(void *va)
 {
-
 	if(va == NULL || is_free_block(va))return;
 
     uint32 cur_size = get_block_size(va);
-
-    void *next_block = (void*)(((char*)va) + cur_size);
-    void *prev_block = (void*)((uint32*)va - 1);
-
-    uint32 next_size = get_block_size(next_block);
-    uint32 prev_size = get_block_size(prev_block);
-
-    prev_block = (void*)(((char*)prev_block) - prev_size + 4);
-
-    if(is_free_block(next_block) && is_free_block(prev_block)){
-    	set_block_data(prev_block, prev_size + cur_size + next_size, 0);
-    	LIST_REMOVE(&freeBlocksList,(struct BlockElement*)next_block);
-    }
-    else if(is_free_block(next_block)){
-    	set_block_data(va, cur_size + next_size, 0);
-    	LIST_INSERT_BEFORE(&freeBlocksList, (struct BlockElement*)next_block, (struct BlockElement*)va);
-    	LIST_REMOVE(&freeBlocksList,(struct BlockElement*)next_block);
-    }
-    else if(is_free_block(prev_block)){
-    	set_block_data(prev_block, prev_size + cur_size, 0);
-    }
-    else{
-    	add_free_block(va, cur_size);
-    }
-
+    add_free_block(va, cur_size);
 }
 
 //=========================================
@@ -312,7 +316,9 @@ void *realloc_block_FF(void* va, uint32 new_size)
 {
 	//TODO: TEST FIRST FIT REALLOCATION
 
+	// if address is null -> allocate a new block
 	if(va == NULL) return alloc_block_FF(new_size);
+	// if new size is zero -> free the block
 	if(new_size == 0){
 		free_block(va);
 		return NULL;
@@ -320,25 +326,27 @@ void *realloc_block_FF(void* va, uint32 new_size)
 
 	uint32 required_size = new_size + DYN_ALLOC_MIN_BLOCK_SIZE;
 	uint32 prev_size = get_block_size(va);
+	void* next_block = (void*)((char*)va + prev_size);
+	uint32 next_block_size = get_block_size(next_block);
 
+	// reallocating to a smaller size
 	if(required_size <= prev_size){
-		if(prev_size - required_size >= 2 * DYN_ALLOC_MIN_BLOCK_SIZE){
 
+		// if there is enough space for a free block after resizing -> add free block
+		if(prev_size - required_size >= 2 * DYN_ALLOC_MIN_BLOCK_SIZE){
 			set_block_data(va, required_size, 1);
 			void* extra_space = (void*)((char*)va + required_size);
 			add_free_block(extra_space, prev_size - required_size);
-
 		}
 		return va;
 	}
 
-	void* next_block = (void*)((char*)va + prev_size);
-	uint32 next_block_size = get_block_size(next_block);
-
+	// if there is a free block next that has enough space -> expand to next
 	if(is_free_block(next_block) && prev_size + next_block_size >= required_size)
 	{
 		LIST_REMOVE(&freeBlocksList,(struct BlockElement*)next_block);
 
+		// if remaining size is enough to form a new free block -> insert it as a free block
 		if(prev_size + next_block_size - required_size >= 2 * DYN_ALLOC_MIN_BLOCK_SIZE)
 		{
 			set_block_data(va, required_size, 1);
@@ -353,9 +361,18 @@ void *realloc_block_FF(void* va, uint32 new_size)
 		return va;
 	}
 
-	free_block(va);
-	return alloc_block_FF(required_size);
 
+	void* new_block = alloc_block_FF(required_size);
+
+	if(new_block != NULL){
+
+		for(int i = 0; i < prev_size; i++)
+			*((char*)new_block + i) = *((char*)va + i);
+
+		free_block(va);
+	}
+
+	return new_block;
 }
 
 /*********************************************************************************************/
