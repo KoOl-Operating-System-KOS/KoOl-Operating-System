@@ -186,6 +186,7 @@ void initialize_dynamic_allocator(uint32 daStart, uint32 initSizeOfAllocatedSpac
 	LIST_INSERT_TAIL(&freeBlocksList, (struct BlockElement*)Free_Block);
 
 }
+
 //==================================
 // [2] SET BLOCK HEADER & FOOTER:
 //==================================
@@ -303,7 +304,7 @@ void *alloc_block_BF(uint32 size)
 //===================================================
 void free_block(void *va)
 {
-	if(va == NULL || is_free_block(va))return;
+	if(va == NULL || is_free_block(va)) return;
 
     uint32 cur_size = get_block_size(va);
     add_free_block(va, cur_size);
@@ -333,7 +334,8 @@ void *realloc_block_FF(void* va, uint32 new_size)
 	if(required_size <= prev_size){
 
 		// if there is enough space for a free block after resizing -> add free block
-		if(prev_size - required_size >= 2 * DYN_ALLOC_MIN_BLOCK_SIZE){
+		// if next block is free -> add free space to the next block regardless of size to avoid fragmantation
+		if(prev_size - required_size >= 2 * DYN_ALLOC_MIN_BLOCK_SIZE || is_free_block(next_block)){
 			set_block_data(va, required_size, 1);
 			void* extra_space = (void*)((char*)va + required_size);
 			add_free_block(extra_space, prev_size - required_size);
