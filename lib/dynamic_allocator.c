@@ -135,7 +135,7 @@ bool alloc(struct BlockElement *current_free_block, uint32 required_size)
         is_enough_space = 1;
         LIST_REMOVE(&freeBlocksList, current_free_block);
 
-        if(block_size - required_size >= 2 * DYN_ALLOC_MIN_BLOCK_SIZE)
+        if(block_size - required_size >= DYN_ALLOC_MIN_BLOCK_SIZE + META_DATA_SIZE)
         {
             set_block_data(start_of_block, required_size, 1);
             void* extra_space = (void*)((char*)start_of_block + required_size);
@@ -180,7 +180,7 @@ void initialize_dynamic_allocator(uint32 daStart, uint32 initSizeOfAllocatedSpac
 	//Setting the meta data for BEG_Block,END_Block blocks and Free_Block
 	*BEG_Block = 1;
 	*END_Block = 1;
-	set_block_data((void*)(Free_Block), initSizeOfAllocatedSpace - DYN_ALLOC_MIN_BLOCK_SIZE, 0);
+	set_block_data((void*)(Free_Block), initSizeOfAllocatedSpace - META_DATA_SIZE, 0);
 	//Initializing the freeBlocksList
 	LIST_INIT(&freeBlocksList);
 	LIST_INSERT_TAIL(&freeBlocksList, (struct BlockElement*)Free_Block);
@@ -192,6 +192,8 @@ void initialize_dynamic_allocator(uint32 daStart, uint32 initSizeOfAllocatedSpac
 //==================================
 void set_block_data(void* va, uint32 totalSize, bool isAllocated)
 {
+	if(totalSize & 1) panic("set_block_data called with odd Size");
+
 	uint32 meta_data = totalSize | (uint32)isAllocated;
 	*((uint32*)va - 1) = meta_data;
 	*((uint32*)((char*)va + (totalSize - 2 * sizeof(uint32)))) = meta_data;
@@ -222,7 +224,7 @@ void *alloc_block_FF(uint32 size)
 	//==================================================================================
 	//==================================================================================
 
-	uint32 required_size = size + DYN_ALLOC_MIN_BLOCK_SIZE;
+	uint32 required_size = size + META_DATA_SIZE;
 	bool found_fitting_size = 0;
 
 	struct BlockElement *current_free_block;
@@ -269,7 +271,7 @@ void *alloc_block_BF(uint32 size)
 	//==================================================================================
 	//==================================================================================
 
-	uint32 required_size = size + DYN_ALLOC_MIN_BLOCK_SIZE;
+	uint32 required_size = size + META_DATA_SIZE;
 	uint32 min_diffrience = (1 << 30);
 	bool found_fitting_size = 0;
 	struct BlockElement *best_block;
@@ -315,8 +317,6 @@ void free_block(void *va)
 //=========================================
 void *realloc_block_FF(void* va, uint32 new_size)
 {
-	//TODO: TEST FIRST FIT REALLOCATION
-
 	// if address is null -> allocate a new block
 	if(va == NULL) return alloc_block_FF(new_size);
 	// if new size is zero -> free the block
@@ -325,7 +325,11 @@ void *realloc_block_FF(void* va, uint32 new_size)
 		return NULL;
 	}
 
-	uint32 required_size = new_size + DYN_ALLOC_MIN_BLOCK_SIZE;
+	if (new_size % 2 != 0) new_size++;	//ensure that the size is even (to use LSB as allocation flag)
+	if (new_size < DYN_ALLOC_MIN_BLOCK_SIZE)
+		new_size = DYN_ALLOC_MIN_BLOCK_SIZE ;
+
+	uint32 required_size = new_size + META_DATA_SIZE;
 	uint32 prev_size = get_block_size(va);
 	void* next_block = (void*)((char*)va + prev_size);
 	uint32 next_block_size = get_block_size(next_block);
@@ -335,7 +339,7 @@ void *realloc_block_FF(void* va, uint32 new_size)
 
 		// if there is enough space for a free block after resizing -> add free block
 		// if next block is free -> add free space to the next block regardless of size to avoid fragmantation
-		if(prev_size - required_size >= 2 * DYN_ALLOC_MIN_BLOCK_SIZE || is_free_block(next_block)){
+		if(prev_size - required_size >= DYN_ALLOC_MIN_BLOCK_SIZE + META_DATA_SIZE || is_free_block(next_block)){
 			set_block_data(va, required_size, 1);
 			void* extra_space = (void*)((char*)va + required_size);
 			add_free_block(extra_space, prev_size - required_size);
@@ -349,7 +353,7 @@ void *realloc_block_FF(void* va, uint32 new_size)
 		LIST_REMOVE(&freeBlocksList,(struct BlockElement*)next_block);
 
 		// if remaining size is enough to form a new free block -> insert it as a free block
-		if(prev_size + next_block_size - required_size >= 2 * DYN_ALLOC_MIN_BLOCK_SIZE)
+		if(prev_size + next_block_size - required_size >= DYN_ALLOC_MIN_BLOCK_SIZE + META_DATA_SIZE)
 		{
 			set_block_data(va, required_size, 1);
 			void* extra_space = (void*)((char*)va + required_size);
@@ -405,7 +409,7 @@ void *alloc_block_WF(uint32 size)
 	//==================================================================================
 	//==================================================================================
 
-	uint32 required_size = size + DYN_ALLOC_MIN_BLOCK_SIZE;
+	uint32 required_size = size + META_DATA_SIZE;
 	uint32 max_diffrience = 0;
 	bool found_fitting_size = 0;
 	struct BlockElement *worst_block;
@@ -460,7 +464,7 @@ void *alloc_block_NF(uint32 size)
 	//==================================================================================
 	//==================================================================================
 
-	uint32 required_size = size + DYN_ALLOC_MIN_BLOCK_SIZE;
+	uint32 required_size = size + META_DATA_SIZE;
 
 	static struct BlockElement *NF_free_block = NULL; //static pointer to keep last order
 

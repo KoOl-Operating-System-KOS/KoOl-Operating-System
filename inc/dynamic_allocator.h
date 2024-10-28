@@ -9,6 +9,7 @@
 #define DYN_ALLOC_MAX_SIZE (32<<20) 		//32 MB
 #define DYN_ALLOC_MAX_BLOCK_SIZE (1<<11) 	//2 KB
 #define DYN_ALLOC_MIN_BLOCK_SIZE (1<<3) 	//8 BYTE
+#define META_DATA_SIZE (1<<3) 	            //8 BYTE
 
 /*Implementation Type of List*/
 #define IMPLICIT_LIST 1
