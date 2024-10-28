@@ -1210,6 +1210,160 @@ void test_free_block_NF()
 	panic("not implemented");
 }
 
+void test_realloc_block_FF_COMPLETE()
+{
+#if USE_KHEAP
+	panic("test_free_block: the kernel heap should be disabled. make sure USE_KHEAP = 0");
+	return;
+#endif
+
+	cprintf("5: reallocating with next block is free (coalesce)[30%]\n\n");
+	int eval = 0;
+	bool is_correct = 1;
+	{
+		int initAllocatedSpace = 2 * Mega;
+		initialize_dynamic_allocator(KERNEL_HEAP_START, initAllocatedSpace);
+		uint32 size=2 * kilo;
+
+		// Step 1: Allocate a block
+		void* block1 = realloc_block_FF(NULL, size);
+		void* initial_start_of_freeblock=LIST_FIRST(&freeBlocksList);
+		uint32 initListSize=LIST_SIZE(&freeBlocksList);
+
+		// Step 2: Shrink block
+		uint32 new_size = kilo;
+		void* shrunkBlock = realloc_block_FF(block1, new_size);
+
+		// Step 3: Verify coalescing
+		if ((void*)LIST_FIRST(&freeBlocksList)!=(void*)((char*)initial_start_of_freeblock-(size-new_size))) {
+			is_correct = 0;
+			cprintf("Failed: Coalescing did not occur after shrinking the block.\n\n");
+		}
+		// Step 4: Verify free blocks
+		else if(LIST_SIZE(&freeBlocksList)!=initListSize || get_block_size((void*)LIST_FIRST(&freeBlocksList))!=initAllocatedSpace-new_size- 2 * sizeOfMetaData){
+					is_correct = 0;
+					cprintf("Failed: Free blocks did not merge correctly.\n\n");
+			}
+		else {
+			cprintf("Success: Coalescing occurred as expected!!\n\n");
+			eval+=30;
+		}
+	}
+
+	cprintf("6: reallocate in different place [30%]\n\n");
+
+	is_correct = 1;
+	{
+		int initAllocatedSpace = 10*kilo;
+		initialize_dynamic_allocator(KERNEL_HEAP_START, initAllocatedSpace);
+
+		// Step 1: Allocate 3 blocks
+		void* block1 = realloc_block_FF(NULL, 5 * kilo);
+		void* block2 = realloc_block_FF(NULL, 2 * kilo);
+		void* block3 = realloc_block_FF(NULL, kilo);
+		uint32 initListSize=LIST_SIZE(&freeBlocksList);
+
+		// Step 2: Free first 2 blocks and give block 3 a size bigger than the free space in front of it
+		realloc_block_FF(block1, 0);
+		realloc_block_FF(block2, 0);
+		int data=12;
+		*(int*)block3=data;
+		uint32 size=5 * kilo;
+		void* newVa=realloc_block_FF(block3, size);
+		void* expected_free_block_address=(void*)((char*)(KERNEL_HEAP_START + 2 * sizeOfMetaData + 5 * kilo));
+		// Step 3: Verify  reallocation of block 3
+		if (newVa != (void*)(KERNEL_HEAP_START + sizeOfMetaData)) {
+				is_correct = 0;
+				cprintf("Failed: Wrong address. Expected %x, Actual %x",  (void*)(KERNEL_HEAP_START + sizeOfMetaData) ,newVa);
+			}
+		// Step 4: Verify free blocks
+		else if(LIST_SIZE(&freeBlocksList)!=initListSize && (void*)LIST_FIRST(&freeBlocksList)==expected_free_block_address && get_block_size((void*)LIST_FIRST(&freeBlocksList))==initAllocatedSpace-(size +sizeOfMetaData)){
+				is_correct = 0;
+				cprintf("Failed: Free blocks did not merge correctly.\n\n");
+		}
+		else if(*(int*)newVa!=data){
+				is_correct = 0;
+				cprintf("Failed: Data didn't reallocate correctly.\n\n");
+		}
+		else {
+				eval+=30;
+				cprintf("Success: Reallocation in different place!!\n\n");
+			}
+	}
+	cprintf("7: reallocate in different place (no free space infront) [20%]\n\n");
+
+		is_correct = 1;
+		{
+			int initAllocatedSpace = 10*kilo + sizeOfMetaData;
+			initialize_dynamic_allocator(KERNEL_HEAP_START, initAllocatedSpace);
+
+			// Step 1: Allocate 3 blocks
+			void* block1 = realloc_block_FF(NULL, 5 * kilo - sizeOfMetaData);
+			void* block2 = realloc_block_FF(NULL, 2 * kilo - sizeOfMetaData);
+			void* block3 = realloc_block_FF(NULL, 3 * kilo - sizeOfMetaData);
+			uint32 initListSize=LIST_SIZE(&freeBlocksList);
+
+			// Step 2: Free first 2 blocks and give block 3 a size bigger than the free space in front of it
+			realloc_block_FF(block1, 0);
+			realloc_block_FF(block2, 0);
+			int data=12;
+			*(int*)block3=data;
+			uint32 size=5 * kilo;
+			void* newVa=realloc_block_FF(block3, size);
+			void* expected_free_block_address=(void*)((char*)(KERNEL_HEAP_START + 2 * sizeOfMetaData + 5 * kilo));
+			// Step 3: Verify  reallocation of block 3
+			if (newVa != (void*)(KERNEL_HEAP_START + sizeOfMetaData)) {
+					is_correct = 0;
+					cprintf("Failed: Wrong address. Expected %x, Actual %x",  (void*)(KERNEL_HEAP_START + sizeOfMetaData) ,newVa);
+				}
+			// Step 4: Verify free blocks
+			else if(LIST_SIZE(&freeBlocksList)!=initListSize && (void*)LIST_FIRST(&freeBlocksList)==expected_free_block_address && get_block_size((void*)LIST_FIRST(&freeBlocksList))==initAllocatedSpace-(size +sizeOfMetaData)){
+					is_correct = 0;
+					cprintf("Failed: Free blocks did not merge correctly.\n\n");
+			}
+			else if(*(int*)newVa!=data){
+					is_correct = 0;
+					cprintf("Failed: Data didn't reallocate correctly.\n\n");
+			}
+			else {
+					eval+=20;
+					cprintf("Success: Reallocation in different place!!\n\n");
+				}
+		}
+	cprintf("8: Test calling realloc with odd size[20%]\n\n");
+
+	is_correct = 1;
+	{
+		int initAllocatedSpace = 2 * Mega;
+		initialize_dynamic_allocator(KERNEL_HEAP_START, initAllocatedSpace);
+
+
+		// Step 1: Allocate a block
+		void* block1 = realloc_block_FF(NULL, 2 * kilo);
+
+		// Step 2: Reallocate with odd size
+		block1 =realloc_block_FF(block1, kilo-1);
+
+		// Step 3: Verify size
+		if (get_block_size(block1)!=kilo+sizeOfMetaData) {
+			is_correct = 0;
+			cprintf("Failed: size is odd.\n\n");
+		}
+		else {
+			eval+=20;
+			cprintf("Success: size is even!!\n\n");
+		}
+	}
+
+	cprintf("Test evaluation: %d\% \n\n",eval);
+	if(eval==100)
+	cprintf("Congratulations!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n");
+
+	return;
+
+}
+
+
 void test_realloc_block_FF()
 {
 #if USE_KHEAP
@@ -1500,21 +1654,13 @@ void test_realloc_block_FF()
 		eval += 15;
 	}
 
-	cprintf("[PARTIAL] test realloc_block with FIRST FIT completed. Evaluation = %d%\n", eval);
+	cprintf("[PARTIAL] test realloc_block with FIRST FIT completed. Evaluation = %d%\n\n", eval);
+
+	test_realloc_block_FF_COMPLETE();
 
 }
 
 
-void test_realloc_block_FF_COMPLETE()
-{
-#if USE_KHEAP
-	panic("test_free_block: the kernel heap should be disabled. make sure USE_KHEAP = 0");
-	return;
-#endif
-
-	panic("this is UNSEEN test");
-
-}
 
 
 /********************Helper Functions***************************/

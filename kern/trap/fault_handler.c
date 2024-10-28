@@ -124,7 +124,7 @@ void fault_handler(struct Trapframe *tf)
 	}
 
 	//get a pointer to the environment that caused the fault at runtime
-	//cprintf("curenv = %x\n", curenv);
+//	cprintf("curenv = %x\n", curenv);
 	struct Env* faulted_env = cur_env;
 	if (faulted_env == NULL)
 	{
