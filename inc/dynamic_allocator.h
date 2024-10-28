@@ -9,6 +9,7 @@
 #define DYN_ALLOC_MAX_SIZE (32<<20) 		//32 MB
 #define DYN_ALLOC_MAX_BLOCK_SIZE (1<<11) 	//2 KB
 #define DYN_ALLOC_MIN_BLOCK_SIZE (1<<3) 	//8 BYTE
+#define META_DATA_SIZE (1<<3) 	            //8 BYTE
 
 /*Implementation Type of List*/
 #define IMPLICIT_LIST 1
@@ -49,6 +50,9 @@ void initialize_uheap_dynamic_allocator(struct Env* env, uint32 daStart, uint32 
 __inline__ uint32 get_block_size(void* va);
 __inline__ int8 is_free_block(void* va);
 void print_blocks_list(struct MemBlock_LIST list);
+
+void add_free_block(void* va, uint32 size);
+bool alloc(struct BlockElement *current_free_block, uint32 required_size);
 //=============================================================================
 
 //Required Functions
