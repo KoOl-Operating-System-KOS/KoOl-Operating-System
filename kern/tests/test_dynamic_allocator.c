@@ -1326,7 +1326,7 @@ void test_realloc_block_FF_COMPLETE()
 					cprintf("Failed: Data didn't reallocate correctly.\n\n");
 			}
 			else {
-					eval+=30;
+					eval+=20;
 					cprintf("Success: Reallocation in different place!!\n\n");
 				}
 		}
@@ -1345,7 +1345,7 @@ void test_realloc_block_FF_COMPLETE()
 		block1 =realloc_block_FF(block1, kilo-1);
 
 		// Step 3: Verify size
-		if (get_block_size(block1)!=kilo) {
+		if (get_block_size(block1)!=kilo+sizeOfMetaData) {
 			is_correct = 0;
 			cprintf("Failed: size is odd.\n\n");
 		}
