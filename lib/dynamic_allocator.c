@@ -476,13 +476,15 @@ void *alloc_block_NF(uint32 size)
 
 		// search until finding a fit or reaching the end of the list
 		while(NF_free_block != NULL){
-
-			if(alloc(NF_free_block, required_size))
-			{
-				return NF_free_block;
-			}
-
+			struct BlockElement *allocBlock = NF_free_block;
 			NF_free_block = LIST_NEXT(NF_free_block);
+			if(alloc(allocBlock, required_size))
+			{
+				void* next_block = (void*)((char*)allocBlock + get_block_size(allocBlock));
+				if(is_free_block(next_block))
+					NF_free_block = next_block;
+				return allocBlock;
+			}
 		}
 	}
 
@@ -491,8 +493,7 @@ void *alloc_block_NF(uint32 size)
 
 	if (NF_free_block == (void*)-1)
 	{
-		NF_free_block = LIST_FIRST(&freeBlocksList); // restart the pointer to maintain the NF
-		return NULL;
+		NF_free_block = NULL;
 	}
 
 	return NF_free_block;
