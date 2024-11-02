@@ -4,17 +4,45 @@
 #include <inc/dynamic_allocator.h>
 #include "memory_manager.h"
 
-//Initialize the dynamic allocator of kernel heap with the given start address, size & limit
+uint32 Kernel_Heap_start;
+uint32 Initial_Size;
+uint32 Hard_Limit;
+
+//[PROJECT'24.MS2] Initialize the dynamic allocator of kernel heap with the given start address, size & limit
 //All pages in the given range should be allocated
 //Remember: call the initialize_dynamic_allocator(..) to complete the initialization
 //Return:
-//	On success: 0
-//	Otherwise (if no memory OR initial size exceed the given limit): PANIC
+//    On success: 0
+//    Otherwise (if no memory OR initial size exceed the given limit): E_NO_MEM
 int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate, uint32 daLimit)
 {
-	//TODO: [PROJECT'24.MS2 - #01] [1] KERNEL HEAP - initialize_kheap_dynamic_allocator
-	// Write your code here, remove the panic and write your code
-	panic("initialize_kheap_dynamic_allocator() is not implemented yet...!!");
+    //[PROJECT'24.MS2] [USER HEAP - KERNEL SIDE] initialize_kheap_dynamic_allocator
+    // Write your code here, remove the panic and write your code
+    //panic("initialize_kheap_dynamic_allocator() is not implemented yet...!!");
+     if(daStart + initSizeToAllocate > daLimit)
+         panic("Initial dynamic allocation size exceeds the dynamic allocation's hard limit.");
+
+
+    Kernel_Heap_start = daStart;
+    Initial_Size = initSizeToAllocate;
+    Hard_Limit = daLimit;
+
+    uint32 current_page = daStart;
+    uint32 permessions = PERM_PRESENT | PERM_WRITEABLE;
+
+    while(current_page < daStart + initSizeToAllocate){
+
+        struct FrameInfo* Frame = allocate_frame(Frame);
+        uint32 *page_directory_index = PDX(current_page);
+        map_frame(page_directory_index,Frame,current_page,permessions);
+
+
+        current_page = current_page + PAGE_SIZE;
+    }
+
+    initialize_dynamic_allocator(Kernel_Heap_start,Initial_Size);
+
+    return 0;
 }
 
 void* sbrk(int numOfPages)
