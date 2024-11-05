@@ -4,9 +4,27 @@
 #include <inc/dynamic_allocator.h>
 #include "memory_manager.h"
 
-uint32 Kernel_Heap_start;
-uint32 Initial_Size;
-uint32 Hard_Limit;
+int allocate_and_map_pages(uint32 startaddress,uint32 segment_break)
+{
+	uint32 current_page = startaddress;
+	uint32 permissions = PERM_USER | PERM_WRITEABLE;
+
+	while (current_page < segment_break) {
+	    struct FrameInfo* Frame;
+
+	    if (allocate_frame(&Frame) != 0) {
+	    	return -1;
+	    }
+
+	    if (map_frame(ptr_page_directory, Frame, current_page, permissions) != 0) {
+	    	return 0;
+	    }
+
+	    current_page += PAGE_SIZE;
+	}
+
+	return 1;
+}
 
 //[PROJECT'24.MS2] Initialize the dynamic allocator of kernel heap with the given start address, size & limit
 //All pages in the given range should be allocated
@@ -19,28 +37,23 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
     //[PROJECT'24.MS2] [USER HEAP - KERNEL SIDE] initialize_kheap_dynamic_allocator
     // Write your code here, remove the panic and write your code
     //panic("initialize_kheap_dynamic_allocator() is not implemented yet...!!");
-     if(daStart + initSizeToAllocate > daLimit)
-         panic("Initial dynamic allocation size exceeds the dynamic allocation's hard limit.");
-
+    if(daStart + initSizeToAllocate > daLimit)
+        panic("Initial dynamic allocation size exceeds the dynamic allocation's hard limit.");
 
     Kernel_Heap_start = daStart;
-    Initial_Size = initSizeToAllocate;
+    segment_break = daStart+initSizeToAllocate;
     Hard_Limit = daLimit;
 
-    uint32 current_page = daStart;
-    uint32 permessions = PERM_PRESENT | PERM_WRITEABLE;
-
-    while(current_page < daStart + initSizeToAllocate){
-
-        struct FrameInfo* Frame = allocate_frame(Frame);
-        uint32 *page_directory_index = PDX(current_page);
-        map_frame(page_directory_index,Frame,current_page,permessions);
-
-
-        current_page = current_page + PAGE_SIZE;
+    int result = allocate_and_map_pages(daStart, segment_break);
+    if(result== -1)
+    {
+        panic("Failed to allocate frame.");
     }
-
-    initialize_dynamic_allocator(Kernel_Heap_start,Initial_Size);
+    else if (result== 0)
+    {
+		panic("Failed to map frame to page.");
+    }
+    initialize_dynamic_allocator(daStart, initSizeToAllocate);
 
     return 0;
 }
@@ -57,13 +70,31 @@ void* sbrk(int numOfPages)
 	 * 		or the break exceed the limit of the dynamic allocator. If sbrk fails, return -1
 	 */
 
-	//MS2: COMMENT THIS LINE BEFORE START CODING==========
-	return (void*)-1 ;
-	//====================================================
-
 	//TODO: [PROJECT'24.MS2 - #02] [1] KERNEL HEAP - sbrk
 	// Write your code here, remove the panic and write your code
-	panic("sbrk() is not implemented yet...!!");
+	//panic("sbrk() is not implemented yet...!!");
+
+	uint32 added_size= numOfPages*PAGE_SIZE;
+	uint32 old_segment_break=segment_break;
+	if(numOfPages== 0)
+	{
+		return (void*)segment_break;
+	}
+	if(segment_break+added_size>Hard_Limit)
+	{
+		return (void*)-1;
+	}
+	int result = allocate_and_map_pages(segment_break,segment_break+added_size);
+	if(result== -1 || result== 0)
+	{
+		return (void*)-1;
+	}
+	uint32* old_end_block=(uint32*)(old_segment_break-META_DATA_SIZE/2);
+	*old_end_block=0;
+	segment_break = segment_break+added_size;
+	uint32* END_Block=(uint32*)(segment_break-META_DATA_SIZE/2);
+	*END_Block = 1;
+	return (void*)old_segment_break;
 }
 
 //TODO: [PROJECT'24.MS2 - BONUS#2] [1] KERNEL HEAP - Fast Page Allocator
@@ -72,10 +103,24 @@ void* kmalloc(unsigned int size)
 {
 	//TODO: [PROJECT'24.MS2 - #03] [1] KERNEL HEAP - kmalloc
 	// Write your code here, remove the panic and write your code
-	kpanic_into_prompt("kmalloc() is not implemented yet...!!");
+	if(size<=DYN_ALLOC_MAX_BLOCK_SIZE)
+		return alloc_block_FF(size);
 
-	// use "isKHeapPlacementStrategyFIRSTFIT() ..." functions to check the current strategy
-
+	uint32 free_address=0;
+	//free_address=free_spaces.get_first_fit_address(size);
+	//if(free_address==NULL)
+	//	return NULL;
+	size=ROUNDUP(size,PAGE_SIZE);
+	int result = allocate_and_map_pages(free_address,free_address+size);
+	if(result== -1 || result== 0)
+	{
+		return NULL;
+	}
+	//mapped_spaces.insert(free_address,size);
+	//uint32 old_size = free_spaces.get_size(free_address);
+	//free_spaces.delete(free_address,old_size);
+	//free_spaces.insert(free_address+size,old_size-size);
+	return (void*)free_address;
 }
 
 void kfree(void* virtual_address)
@@ -86,7 +131,6 @@ void kfree(void* virtual_address)
 
 	//you need to get the size of the given allocation using its address
 	//refer to the project presentation and documentation for details
-
 }
 
 unsigned int kheap_physical_address(unsigned int virtual_address)

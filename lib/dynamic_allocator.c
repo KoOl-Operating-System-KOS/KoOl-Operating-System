@@ -85,7 +85,18 @@ void print_blocks_list(struct MemBlock_LIST list)
 
 // adds a free block and merges it with adjacent free blocks if possible
 // (MAKE SURE PREVIOUS AND NEXT BLOCKS' DATA ARE SET CORRECTLY BEFORE CALLING)
-void add_free_block(void* va, uint32 size){
+void* extend_mapped_region(uint32 size)
+{
+	uint32 no_of_pages=ROUNDUP(size,PAGE_SIZE)/PAGE_SIZE;
+	void* va = sbrk(no_of_pages);
+	if (va == (void*)-1) return NULL;
+
+	va=add_free_block(va,no_of_pages*PAGE_SIZE);
+	alloc(va,size);
+	return va;
+}
+
+void* add_free_block(void* va, uint32 size){
 
 	void *next_block = (void*)(((char*)va) + size);
 	void *prev_block = (void*)((uint32*)va - 1);
@@ -97,13 +108,12 @@ void add_free_block(void* va, uint32 size){
 
 	if(is_free_block(next_block) && is_free_block(prev_block)){
 		LIST_REMOVE(&freeBlocksList,(struct BlockElement*)next_block);
-		va = prev_block;
 		set_block_data(prev_block, prev_size + size + next_size, 0);
-		return;
+		return prev_block;
 	}
 	else if(is_free_block(prev_block)){
 		set_block_data(prev_block, prev_size + size, 0);
-		return;
+		return prev_block;
 	}
 	else if(is_free_block(next_block)){
 		LIST_REMOVE(&freeBlocksList,(struct BlockElement*)next_block);
@@ -122,6 +132,7 @@ void add_free_block(void* va, uint32 size){
 		LIST_FOREACH (cur, &freeBlocksList) if((void*)cur > va) break;
 		LIST_INSERT_BEFORE(&freeBlocksList, cur, (struct BlockElement*)va);
 	}
+	return va;
 }
 
 bool alloc(struct BlockElement *current_free_block, uint32 required_size)
@@ -236,11 +247,9 @@ void *alloc_block_FF(uint32 size)
 			break;
 		}
 	}
-
 	if (!found_fitting_size)
 	{
-		current_free_block = (struct BlockElement*) sbrk(required_size);
-		if (current_free_block == (struct BlockElement*)-1) return NULL;
+		return extend_mapped_region(required_size);
 	}
 
 	return (void*)current_free_block;
@@ -289,9 +298,7 @@ void *alloc_block_BF(uint32 size)
 
 	if (found_fitting_size == 0)
 	{
-		best_block = (struct BlockElement *)sbrk(required_size);
-		if (best_block == (struct BlockElement *)-1)
-		  return NULL;
+		return extend_mapped_region(required_size);
 	}
 	else
 	{

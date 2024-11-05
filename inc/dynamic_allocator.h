@@ -51,7 +51,8 @@ __inline__ uint32 get_block_size(void* va);
 __inline__ int8 is_free_block(void* va);
 void print_blocks_list(struct MemBlock_LIST list);
 
-void add_free_block(void* va, uint32 size);
+void* extend_mapped_region(uint32 size);
+void* add_free_block(void* va, uint32 size);
 bool alloc(struct BlockElement *current_free_block, uint32 required_size);
 //=============================================================================
 
