@@ -151,6 +151,15 @@ void fault_handler(struct Trapframe *tf)
 			//TODO: [PROJECT'24.MS2 - #08] [2] FAULT HANDLER I - Check for invalid pointers
 			//(e.g. pointing to unmarked user heap page, kernel or wrong access rights),
 			//your code is here
+			uint32* ptr_page_table=NULL;
+			get_page_table(ptr_page_directory,fault_va,&ptr_page_table);
+			//if(ptr_page_table==NULL)env_exit();
+			bool writeable=ptr_page_table[PTX(fault_va)]&PERM_WRITEABLE;
+			bool marked=ptr_page_table[PTX(fault_va)]&PERM_USER;
+			////// page marked still not implemented
+             if ( writeable==0||fault_va>=KERNEL_BASE || marked==0 ){
+            	 env_exit();
+             }
 
 			/*============================================================================================*/
 		}
@@ -227,8 +236,12 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		//cprintf("PLACEMENT=========================WS Size = %d\n", wsSize );
 		//TODO: [PROJECT'24.MS2 - #09] [2] FAULT HANDLER I - Placement
 		// Write your code here, remove the panic and write your code
-		panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
+		//panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
 
+		int ret =pf_read_env_page(faulted_env,fault_va);
+		if (ret=E_PAGE_NOT_EXIST_IN_PF){
+
+		}
 		//refer to the project presentation and documentation for details
 	}
 	else
