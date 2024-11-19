@@ -21,17 +21,30 @@ inline struct WorkingSetElement* env_page_ws_list_create_element(struct Env* e, 
 	//COMMENT THE FOLLOWING LINE BEFORE START CODING
 	//panic("env_page_ws_list_create_element is not implemented yet");
 	//Your Code is Here...
-	struct WorkingSetElement *WS_Element=NULL;
-	WS_Element->virtual_address=virtual_address;
-	 if(e->page_last_WS_element==NULL){
-	LIST_INSERT_TAIL(&(e->page_WS_list),WS_Element);
-	return WS_Element;
+
+    struct WorkingSetElement *WS_Element = (struct WorkingSetElement*)kmalloc(sizeof(struct WorkingSetElement));
+
+    WS_Element->virtual_address=virtual_address;
+
+    if(e->page_last_WS_element==NULL){
+
+		LIST_INSERT_TAIL(&(e->page_WS_list),WS_Element);
+
+		//WE NEED TO CHECK WETHER WE SHOULD UPDATE THE LAST WS ELEMENT TO NULL OR THE ADDRESS;
+
+		if(LIST_SIZE(&(e->page_WS_list)) == e->page_WS_max_size){
+
+			e->page_last_WS_element = WS_Element + sizeof(struct WorkingSetElement);
+		}
+
+		return WS_Element;
 
 	}else {
-		panic("Yallllllahwy");
+		panic("Working set is full");
 	}
 
 }
+
 inline void env_page_ws_invalidate(struct Env* e, uint32 virtual_address)
 {
 	if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))

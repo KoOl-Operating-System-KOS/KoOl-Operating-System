@@ -11,6 +11,8 @@
 #include <kern/cpu/cpu.h>
 #include <kern/disk/pagefile_manager.h>
 #include <kern/mem/memory_manager.h>
+#include "../mem/kheap.h"
+
 
 //2014 Test Free(): Set it to bypass the PAGE FAULT on an instruction with this length and continue executing the next one
 // 0 means don't bypass the PAGE FAULT
@@ -151,14 +153,28 @@ void fault_handler(struct Trapframe *tf)
 			//TODO: [PROJECT'24.MS2 - #08] [2] FAULT HANDLER I - Check for invalid pointers
 			//(e.g. pointing to unmarked user heap page, kernel or wrong access rights),
 			//your code is here
+
+			//check bounderies of heap
+
 			uint32* ptr_page_table=NULL;
+
 			get_page_table(ptr_page_directory,fault_va,&ptr_page_table);
-			//if(ptr_page_table==NULL)env_exit();
-			bool writeable=ptr_page_table[PTX(fault_va)]&PERM_WRITEABLE;
-			bool marked=ptr_page_table[PTX(fault_va)]&PERM_USER;
-			////// page marked still not implemented
-             if ( writeable==0||fault_va>=KERNEL_BASE || marked==0 ){
+
+			if(ptr_page_table==NULL)env_exit();
+
+			bool writeable = ptr_page_table[PTX(fault_va)]&PERM_WRITEABLE;
+
+			//bool marked = ptr_page_table[PTX(fault_va)]&PERM_USER;
+
+			bool marked = ptr_page_table[PTX(fault_va)] & MARKING_BIT;
+
+
+			//CHECK THE KERNEL CONDITION
+
+			if ( writeable==0 || fault_va>=KERNEL_BASE || marked==0 ){
+
             	 env_exit();
+
              }
 
 			/*============================================================================================*/
@@ -238,11 +254,44 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		// Write your code here, remove the panic and write your code
 		//panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
 
-		int ret =pf_read_env_page(faulted_env,fault_va);
-		if (ret=E_PAGE_NOT_EXIST_IN_PF){
+		// allocate using kmaalloc
+		// check AND ALLOCATE
+		// WE NEED TO IMPLEMENT THIS
+		// throw the read in the allocated
 
+
+		int ret = pf_read_env_page(faulted_env,(void*)fault_va);
+
+		if(ret == E_PAGE_NOT_EXIST_IN_PF){
+
+			if (fault_va >= USTACKBOTTOM && fault_va < USTACKTOP) {
+
+				//CREATE A STACK PAGE
+				kmalloc(PAGE_SIZE);
+
+			}
+
+
+			else if (fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) {
+
+				//validate the implementation
+
+				kmalloc(PAGE_SIZE);
+
+			}
+
+			else if (fault_va >= KERNEL_HEAP_START && fault_va < KERNEL_HEAP_MAX){
+
+
+			    env_exit();
+			}
+
+		}else{
+
+            struct WorkingSetElement *WsElement = env_page_ws_list_create_element(faulted_env, fault_va);
 		}
-		//refer to the project presentation and documentation for details
+
+
 	}
 	else
 	{
@@ -250,8 +299,9 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		//refer to the project presentation and documentation for details
 		//TODO: [PROJECT'24.MS3] [2] FAULT HANDLER II - Replacement
 		// Write your code here, remove the panic and write your code
-		panic("page_fault_handler() Replacement is not implemented yet...!!");
+	    panic("page_fault_handler() Replacement is not implemented yet...!!");
 	}
+}
 }
 
 void __page_fault_handler_with_buffering(struct Env * curenv, uint32 fault_va)

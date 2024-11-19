@@ -867,13 +867,41 @@ void* create_user_kern_stack(uint32* ptr_user_page_directory)
 #if USE_KHEAP
 	//TODO: [PROJECT'24.MS2 - #07] [2] FAULT HANDLER I - create_user_kern_stack
 	// Write your code here, remove the panic and write your code
-	panic("create_user_kern_stack() is not implemented yet...!!");
+	//panic("create_user_kern_stack() is not implemented yet...!!");
 
 	//allocate space for the user kernel stack.
 	//remember to leave its bottom page as a GUARD PAGE (i.e. not mapped)
 	//return a pointer to the start of the allocated space (including the GUARD PAGE)
 	//On failure: panic
 
+	uint32* checker = kmalloc(KERNEL_STACK_SIZE);
+
+	if(checker == NULL){
+
+		panic("NOT ENOUGH SPACE, SADLY");
+	}
+	else{
+
+
+		uint32* guard_pointer = (uint32*)checker;
+
+		uint32* return_page = NULL;
+
+	    get_page_table(ptr_user_page_directory,*guard_pointer,&return_page);
+
+	    if(return_page!=NULL){
+
+	    	return_page[PTX(guard_pointer)] = return_page[PTX(guard_pointer)] & (~PERM_PRESENT);
+
+	    	return checker;
+
+	    }else{
+
+	    	panic("NO PAGE FOUND!");
+	    }
+
+
+	}
 
 #else
 	if (KERNEL_HEAP_MAX - __cur_k_stk < KERNEL_STACK_SIZE)
