@@ -434,9 +434,7 @@ void *alloc_block_WF(uint32 size)
 
 	if (found_fitting_size == 0)
 	{
-		worst_block = (struct BlockElement *)sbrk(required_size);
-		if (worst_block == (struct BlockElement *)-1)
-		  return NULL;
+		return extend_mapped_region(required_size);
 	}
 	else
 	{
@@ -496,11 +494,11 @@ void *alloc_block_NF(uint32 size)
 	}
 
 	// if no fit is matched after the loop, then there is no possible matches, call sbrk
-	NF_free_block = sbrk(required_size);
+	NF_free_block = extend_mapped_region(required_size);
 
-	if (NF_free_block == (void*)-1)
+	if (NF_free_block != NULL)
 	{
-		NF_free_block = NULL;
+		NF_free_block += required_size;
 	}
 
 	return NF_free_block;

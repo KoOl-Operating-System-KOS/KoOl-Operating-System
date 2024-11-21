@@ -4,26 +4,166 @@
 #include <inc/dynamic_allocator.h>
 #include "memory_manager.h"
 
+#define max(a, b) (a > b ? a : b)
+
 int allocate_and_map_pages(uint32 startaddress,uint32 segment_break)
 {
-	uint32 current_page = startaddress;
-	uint32 permissions = PERM_USER | PERM_WRITEABLE;
+    uint32 current_page = startaddress;
+    uint32 permissions = PERM_PRESENT | PERM_WRITEABLE;
 
-	while (current_page < segment_break) {
-	    struct FrameInfo* Frame;
+    while (current_page < segment_break) {
+        struct FrameInfo* Frame;
 
-	    if (allocate_frame(&Frame) != 0) {
-	    	return -1;
-	    }
+        if (allocate_frame(&Frame) != 0) {
+            return -1;
+        }
 
-	    if (map_frame(ptr_page_directory, Frame, current_page, permissions) != 0) {
-	    	return 0;
-	    }
+        if (map_frame(ptr_page_directory, Frame, current_page, permissions) != 0) {
+            free_frame(Frame);
+            return 0;
+        }
 
-	    current_page += PAGE_SIZE;
+        current_page += PAGE_SIZE;
+    }
+
+    return 1;
+}
+
+inline int set_value(int cur, int val, bool isAllocated){
+	return info_tree[cur] = val * (isAllocated ? -1 : 1);
+}
+
+inline int get_value(int cur){
+	return max(info_tree[cur], 0);
+}
+
+inline int get_address(int cur){
+	return -info_tree[cur];
+}
+
+inline int is_allocated(int cur){
+	return (info_tree[cur] < 0);
+}
+
+void TREE_add_free(int page_idx, int count, int cur, int l, int r){
+	if(l == r){
+		set_value(cur, count, 0);
+		return;
 	}
 
-	return 1;
+	int mid = (l + r) >> 1;
+
+	if(page_idx <= mid)
+		TREE_add_free(page_idx, count, cur << 1, l, mid);
+	else
+		TREE_add_free(page_idx, count, cur << 1 | 1, mid + 1, r);
+
+	set_value(cur, max(get_value(cur << 1), get_value(cur << 1 | 1)), 0);
+}
+
+void* TREE_alloc_FF(int count, int cur, int l, int r){
+
+	if(l == r){
+		int page_idx = l;
+		int free_pages = get_value(cur);
+
+		void* va = (void*)(page_allocator_start + page_idx * PAGE_SIZE);
+		int ecode = allocate_and_map_pages((uint32)va, (uint32)va + count * PAGE_SIZE);
+
+		if(ecode == -1 || ecode == 0) return NULL;
+
+		for(int i = 0; i < count; i++)
+			set_value(cur + i, page_idx + 1, 1);
+
+		if(free_pages > count) set_value(cur + count, free_pages - count, 0);
+
+		int s = cur / 2, e = (cur + count - (free_pages == count)) / 2;
+
+		while(s > 0){
+			for(int i = s; i <= e; i++)
+				set_value(i, max(get_value(i << 1), get_value(i << 1 | 1)), 0);
+			s >>= 1, e >>= 1;
+		}
+
+		return va;
+	}
+
+	int mid = (l + r) >> 1;
+
+	if(get_value(cur << 1) >= count)
+		return TREE_alloc_FF(count, cur << 1, l, mid);
+	else
+		return TREE_alloc_FF(count, (cur << 1) + 1, mid + 1, r);
+}
+
+bool TREE_free(int page_idx, int cur, int l, int r){
+
+	if(l == r){
+		if(!is_allocated(cur) || get_address(cur) != page_idx + 1)
+			return 0;
+
+		int cur_node = cur, cur_va = page_allocator_start + page_idx * PAGE_SIZE;
+		int count = 0, total_count = 0;
+
+		while(is_allocated(cur_node) && get_address(cur_node) == page_idx + 1){
+			uint32 *ptr_page_table;
+			free_frame(get_frame_info(ptr_page_directory, cur_va, &ptr_page_table));
+			unmap_frame(ptr_page_directory, cur_va);
+
+			set_value(cur_node, 0, 0);
+			cur_va += PAGE_SIZE;
+			count++, cur_node++;
+		}
+		total_count = count;
+
+		if(!is_allocated(cur_node)){
+			total_count += get_value(cur_node);
+			set_value(cur_node, 0, 0);
+		}
+
+		int s = cur / 2, e = (cur + count - (total_count == count)) / 2;
+
+		while(s > 0){
+			for(int i = s; i <= e; i++)
+				set_value(i, max(get_value(i << 1), get_value(i << 1 | 1)), 0);
+			s >>= 1, e >>= 1;
+		}
+
+		cur_node = cur;
+		if(page_idx == 0 || is_allocated(cur-1)){
+			set_value(cur_node, total_count, 0);
+		}
+		else{
+			int levels = 0;
+
+			while(get_value(cur_node) == 0)
+				cur_node >>= 1, levels++;
+
+			while(levels--){
+				if(get_value(cur_node << 1 | 1) > 0)
+					cur_node = cur_node << 1 | 1;
+				else
+					cur_node = cur_node << 1;
+			}
+
+			set_value(cur_node, total_count + get_value(cur_node), 0);
+		}
+
+		cur_node >>= 1;
+		while(cur_node){
+			set_value(cur_node, max(get_value(cur_node << 1), get_value(cur_node << 1 | 1)), 0);
+			cur_node >>= 1;
+		}
+
+		return 1;
+	}
+
+	int mid = (l + r) >> 1;
+
+	if(page_idx <= mid)
+		return TREE_free(page_idx, cur << 1, l, mid);
+	else
+		return TREE_free(page_idx, cur << 1 | 1, mid + 1, r);
 }
 
 //[PROJECT'24.MS2] Initialize the dynamic allocator of kernel heap with the given start address, size & limit
@@ -34,9 +174,6 @@ int allocate_and_map_pages(uint32 startaddress,uint32 segment_break)
 //    Otherwise (if no memory OR initial size exceed the given limit): E_NO_MEM
 int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate, uint32 daLimit)
 {
-    //[PROJECT'24.MS2] [USER HEAP - KERNEL SIDE] initialize_kheap_dynamic_allocator
-    // Write your code here, remove the panic and write your code
-    //panic("initialize_kheap_dynamic_allocator() is not implemented yet...!!");
     if(daStart + initSizeToAllocate > daLimit)
         panic("Initial dynamic allocation size exceeds the dynamic allocation's hard limit.");
 
@@ -55,6 +192,10 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
     }
     initialize_dynamic_allocator(daStart, initSizeToAllocate);
 
+    page_allocator_start = Hard_Limit + PAGE_SIZE;
+
+    TREE_add_free(0, (KERNEL_HEAP_MAX - page_allocator_start) / PAGE_SIZE, 1, 0, PAGES_COUNT-1);
+
     return 0;
 }
 
@@ -69,10 +210,6 @@ void* sbrk(int numOfPages)
 	 * 	1) Allocating additional pages for a kernel dynamic allocator will fail if the free frames are exhausted
 	 * 		or the break exceed the limit of the dynamic allocator. If sbrk fails, return -1
 	 */
-
-	//TODO: [PROJECT'24.MS2 - #02] [1] KERNEL HEAP - sbrk
-	// Write your code here, remove the panic and write your code
-	//panic("sbrk() is not implemented yet...!!");
 
 	uint32 added_size= numOfPages*PAGE_SIZE;
 	uint32 old_segment_break=segment_break;
@@ -94,6 +231,7 @@ void* sbrk(int numOfPages)
 	segment_break = segment_break+added_size;
 	uint32* END_Block=(uint32*)(segment_break-META_DATA_SIZE/2);
 	*END_Block = 1;
+
 	return (void*)old_segment_break;
 }
 
@@ -101,36 +239,28 @@ void* sbrk(int numOfPages)
 
 void* kmalloc(unsigned int size)
 {
-	//TODO: [PROJECT'24.MS2 - #03] [1] KERNEL HEAP - kmalloc
-	// Write your code here, remove the panic and write your code
 	if(size<=DYN_ALLOC_MAX_BLOCK_SIZE)
 		return alloc_block_FF(size);
 
-	uint32 free_address=0;
-	//free_address=free_spaces.get_first_fit_address(size);
-	//if(free_address==NULL)
-	//	return NULL;
-	size=ROUNDUP(size,PAGE_SIZE);
-	int result = allocate_and_map_pages(free_address,free_address+size);
-	if(result== -1 || result== 0)
-	{
+	uint32 pages_count = ROUNDUP(size,PAGE_SIZE) / PAGE_SIZE;
+
+	if(get_value(1) < pages_count)
 		return NULL;
-	}
-	//mapped_spaces.insert(free_address,size);
-	//uint32 old_size = free_spaces.get_size(free_address);
-	//free_spaces.delete(free_address,old_size);
-	//free_spaces.insert(free_address+size,old_size-size);
-	return (void*)free_address;
+
+	return TREE_alloc_FF(pages_count, 1, 0, PAGES_COUNT-1);
 }
 
 void kfree(void* virtual_address)
 {
-	//TODO: [PROJECT'24.MS2 - #04] [1] KERNEL HEAP - kfree
-	// Write your code here, remove the panic and write your code
-	panic("kfree() is not implemented yet...!!");
+	if((uint32)virtual_address <= Hard_Limit){
+		free_block(virtual_address);
+		return;
+	}
 
-	//you need to get the size of the given allocation using its address
-	//refer to the project presentation and documentation for details
+	uint32 address_dir = ((uint32)virtual_address - page_allocator_start) / PAGE_SIZE;
+
+	if((uint32)virtual_address % PAGE_SIZE != 0 || !TREE_free(address_dir, 1, 0, PAGES_COUNT-1))
+		panic("Trying to free an address that is not allocated\n");
 }
 
 unsigned int kheap_physical_address(unsigned int virtual_address)

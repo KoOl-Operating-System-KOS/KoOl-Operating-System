@@ -6,6 +6,7 @@
 #endif
 
 #include <inc/types.h>
+#include <inc/queue.h>
 
 
 /*2017*/
@@ -46,5 +47,28 @@ int numOfKheapVACalls ;
 uint32 Kernel_Heap_start;
 uint32 segment_break;
 uint32 Hard_Limit;
+
+struct PageElement
+{
+	LIST_ENTRY(PageElement) prev_next_info;	/* linked list links */
+	uint32 pages_count;
+};// __attribute__((packed))
+
+
+#define PAGES_COUNT (1<<19)
+
+uint32 page_allocator_start;
+int info_tree[2 * PAGES_COUNT + 5];
+
+
+int allocate_and_map_pages(uint32 startaddress,uint32 segment_break);
+inline int set_value(int cur, int val, bool isAllocated);
+inline int get_value(int cur);
+inline int get_address(int cur);
+inline int is_allocated(int cur);
+void TREE_add_free(int page_idx, int count, int cur, int l, int r);
+void* TREE_alloc_FF(int count, int cur, int l, int r);
+bool TREE_free(int page_idx, int cur, int l, int r);
+
 
 #endif // FOS_KERN_KHEAP_H_
