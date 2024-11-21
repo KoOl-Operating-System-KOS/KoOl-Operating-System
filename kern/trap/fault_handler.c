@@ -11,7 +11,7 @@
 #include <kern/cpu/cpu.h>
 #include <kern/disk/pagefile_manager.h>
 #include <kern/mem/memory_manager.h>
-#include "../mem/kheap.h"
+
 
 
 //2014 Test Free(): Set it to bypass the PAGE FAULT on an instruction with this length and continue executing the next one
@@ -160,14 +160,19 @@ void fault_handler(struct Trapframe *tf)
 
 			get_page_table(ptr_page_directory,fault_va,&ptr_page_table);
 
-			if(ptr_page_table==NULL)env_exit();
+			if(ptr_page_table==NULL){
+				env_exit();
+			}
 
 			bool writeable = ptr_page_table[PTX(fault_va)]&PERM_WRITEABLE;
 
 			//bool marked = ptr_page_table[PTX(fault_va)]&PERM_USER;
 
-			bool marked = ptr_page_table[PTX(fault_va)] & MARKING_BIT;
+			bool marked = ptr_page_table[PTX(fault_va)] & PERM_PRESENT;
 
+			//pt_get_page_permission moheeeeeeeeeeeeeeeem!!!!!!!!
+
+			//present is the marking no special marking
 
 			//CHECK THE KERNEL CONDITION
 
@@ -252,47 +257,52 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		//cprintf("PLACEMENT=========================WS Size = %d\n", wsSize );
 		//TODO: [PROJECT'24.MS2 - #09] [2] FAULT HANDLER I - Placement
 		// Write your code here, remove the panic and write your code
-		//panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
+		panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
 
-		// allocate using kmaalloc
-		// check AND ALLOCATE
-		// WE NEED TO IMPLEMENT THIS
-		// throw the read in the allocated
 
+		//allocate and map
+		//read
+		//redesign this func
+		//normal allocation and mapping
+
+		struct FrameInfo *frame = NULL;
+
+		int allocation = allocate_frame(&frame);
+
+		if(allocation==0 || frame == NULL){
+
+			panic("FAILED ALLOCATION FOR THE FAULT");
+		}
+
+        map_frame(faulted_env->env_page_directory, frame, fault_va, PERM_WRITEABLE | PERM_USER);
 
 		int ret = pf_read_env_page(faulted_env,(void*)fault_va);
 
+
 		if(ret == E_PAGE_NOT_EXIST_IN_PF){
 
-			if (fault_va >= USTACKBOTTOM && fault_va < USTACKTOP) {
+			if (fault_va >= KERNEL_HEAP_START && fault_va < KERNEL_HEAP_MAX){
 
-				//CREATE A STACK PAGE
-				kmalloc(PAGE_SIZE);
 
+				env_exit();
 			}
 
-
-			else if (fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) {
-
-				//validate the implementation
-
-				kmalloc(PAGE_SIZE);
-
-			}
-
-			else if (fault_va >= KERNEL_HEAP_START && fault_va < KERNEL_HEAP_MAX){
-
-
-			    env_exit();
-			}
-
-		}else{
-
-            struct WorkingSetElement *WsElement = env_page_ws_list_create_element(faulted_env, fault_va);
 		}
 
+        struct WorkingSetElement* WsElement = env_page_ws_list_create_element(faulted_env, fault_va);
+
+        LIST_INSERT_TAIL(&(faulted_env->page_WS_list), WsElement);
+        if (LIST_SIZE(&(faulted_env->page_WS_list)) == faulted_env->page_WS_max_size){
+
+        	faulted_env->page_last_WS_element = LIST_FIRST(&(faulted_env->page_WS_list));
+        }
+        else
+       {
+        	faulted_env->page_last_WS_element = NULL;
+       }
 
 	}
+
 	else
 	{
 		//cprintf("REPLACEMENT=========================WS Size = %d\n", wsSize );
@@ -302,7 +312,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 	    panic("page_fault_handler() Replacement is not implemented yet...!!");
 	}
 }
-}
+
 
 void __page_fault_handler_with_buffering(struct Env * curenv, uint32 fault_va)
 {
