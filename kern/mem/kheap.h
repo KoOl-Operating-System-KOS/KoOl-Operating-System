@@ -56,6 +56,9 @@ uint32 page_allocator_start;
 uint32 info_tree[2 * PAGES_COUNT + 5];
 
 int allocate_and_map_pages(uint32 start_address, uint32 end_address);
+inline bool is_valid_kheap_address(uint32 virtual_address);
+inline uint32 address_to_page(void* virtual_address);
+inline void* relocate(void* old_va, uint32 copy_size, uint32 new_size);
 inline uint32 set_info(uint32 cur, uint32 val, bool isAllocated);
 inline bool is_allocated(uint32 cur);
 inline uint32 get_free_value(uint32 cur);
@@ -63,8 +66,8 @@ inline uint32 get_value(uint32 cur);
 inline void update_node(uint32 cur, uint32 val, bool isAllocated);
 uint32 TREE_get_node(uint32 page_idx);
 uint32 TREE_first_fit(uint32 count, uint32* page_idx);
-void TREE_add_free(uint32 page_idx, uint32 count);
 void* TREE_alloc_FF(uint32 count);
 bool TREE_free(uint32 page_idx);
+void* TREE_realloc(uint32 page_idx, uint32 new_count);
 
 #endif // FOS_KERN_KHEAP_H_

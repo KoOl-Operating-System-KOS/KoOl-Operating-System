@@ -29,6 +29,24 @@ int allocate_and_map_pages(uint32 start_address, uint32 end_address)
     return 1;
 }
 
+inline bool is_valid_kheap_address(uint32 virtual_address){
+	return (virtual_address <= KERNEL_HEAP_MAX &&
+			virtual_address >= page_allocator_start &&
+			virtual_address % PAGE_SIZE == 0);
+}
+
+inline uint32 address_to_page(void* virtual_address){
+	return ((uint32)virtual_address - page_allocator_start) / PAGE_SIZE;
+}
+
+inline void* relocate(void* old_va, uint32 copy_size, uint32 new_size){
+	void* new_va = kmalloc(new_size);
+	if(new_va == NULL) return NULL;
+	memcpy(new_va, old_va, copy_size);
+	kfree(old_va);
+	return new_va;
+}
+
 inline uint32 set_info(uint32 cur, uint32 val, bool isAllocated){
 	return info_tree[cur] = val | (isAllocated ? ALLOC_FLAG : 0);
 }
@@ -72,10 +90,6 @@ uint32 TREE_first_fit(uint32 count, uint32* page_idx){
 		else l = mid + 1, cur = cur << 1 | 1, *page_idx = l;
 	}
 	return cur;
-}
-
-void TREE_add_free(uint32 page_idx, uint32 count){
-	update_node(TREE_get_node(page_idx), count, 0);
 }
 
 void* TREE_alloc_FF(uint32 count){
@@ -149,6 +163,51 @@ bool TREE_free(uint32 page_idx){
 	return 1;
 }
 
+void* TREE_realloc(uint32 page_idx, uint32 new_size){
+
+	uint32 new_count = ROUNDUP(new_size, PAGE_SIZE) / PAGE_SIZE;
+	uint32 cur = TREE_get_node(page_idx);
+	uint32 old_count = get_value(cur);
+
+	if(!is_allocated(cur) || old_count == 0)
+		return NULL;
+
+	uint32 nxt = cur + old_count;
+	uint32 next_count = get_free_value(nxt);
+
+	if(!is_allocated(nxt))
+		update_node(nxt, 0, 0);
+
+	if(new_count <= old_count){ // shrink
+
+		uint32 cur_va = page_allocator_start + (page_idx + new_count) * PAGE_SIZE, *ptr_page_table;
+
+		for(int i = new_count; i < old_count; i++){
+			set_info(cur + i, 0, 0);
+			free_frame(get_frame_info(ptr_page_directory, cur_va, &ptr_page_table));
+			unmap_frame(ptr_page_directory, cur_va);
+			cur_va += PAGE_SIZE;
+		}
+	}
+	else{ // expand
+
+		if(old_count + next_count < new_count) // relocate
+			return relocate((void*)(page_allocator_start + page_idx * PAGE_SIZE), old_count * PAGE_SIZE, new_size);
+
+		uint32 cur_va = page_allocator_start + (page_idx + old_count) * PAGE_SIZE, *ptr_page_table;
+
+		for(int i = old_count; i < new_count; i++)
+			set_info(cur + i, 0, 1);
+		set_info(cur, new_count, 1);
+
+	}
+
+	if(old_count + next_count - new_count > 0)
+		update_node(page_idx + new_count, old_count + next_count - new_count, 0);
+
+	return (void*)(page_allocator_start + page_idx * PAGE_SIZE);
+}
+
 //[PROJECT'24.MS2] Initialize the dynamic allocator of kernel heap with the given start address, size & limit
 //All pages in the given range should be allocated
 //Remember: call the initialize_dynamic_allocator(..) to complete the initialization
@@ -176,8 +235,7 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
     initialize_dynamic_allocator(daStart, initSizeToAllocate);
 
     page_allocator_start = Hard_Limit + PAGE_SIZE;
-
-    TREE_add_free(0, (KERNEL_HEAP_MAX - page_allocator_start) / PAGE_SIZE);
+    update_node(TREE_get_node(0), (KERNEL_HEAP_MAX - page_allocator_start) / PAGE_SIZE, 0);
 
     return 0;
 }
@@ -218,11 +276,9 @@ void* sbrk(int numOfPages)
 	return (void*)old_segment_break;
 }
 
-//TODO: [PROJECT'24.MS2 - BONUS#2] [1] KERNEL HEAP - Fast Page Allocator
-
 void* kmalloc(unsigned int size)
 {
-	if(size<=DYN_ALLOC_MAX_BLOCK_SIZE)
+	if(size <= DYN_ALLOC_MAX_BLOCK_SIZE)
 		return alloc_block_FF(size);
 
 	return TREE_alloc_FF(ROUNDUP(size,PAGE_SIZE) / PAGE_SIZE);
@@ -230,17 +286,9 @@ void* kmalloc(unsigned int size)
 
 void kfree(void* virtual_address)
 {
-	if((uint32)virtual_address <= Hard_Limit){
+	if((uint32)virtual_address <= Hard_Limit)
 		free_block(virtual_address);
-		return;
-	}
-
-	uint32 address_dir = ((uint32)virtual_address - page_allocator_start) / PAGE_SIZE;
-
-	if((uint32)virtual_address > KERNEL_HEAP_MAX ||
-	   (uint32)virtual_address < page_allocator_start ||
-	   (uint32)virtual_address % PAGE_SIZE != 0 ||
-	   !TREE_free(address_dir))
+	else if(!is_valid_kheap_address((uint32)virtual_address) || !TREE_free(address_to_page(virtual_address)))
 		panic("Trying to free an address that is not allocated\n");
 }
 
@@ -282,8 +330,25 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 
 void *krealloc(void *virtual_address, uint32 new_size)
 {
-	//TODO: [PROJECT'24.MS2 - BONUS#1] [1] KERNEL HEAP - krealloc
-	// Write your code here, remove the panic and write your code
-	return NULL;
-	panic("krealloc() is not implemented yet...!!");
+	if(virtual_address == NULL) // allocate when va = NULL
+		return kmalloc(new_size);
+
+	if((uint32)virtual_address <= Hard_Limit && new_size <= DYN_ALLOC_MAX_BLOCK_SIZE) // handled in block allocator
+		return realloc_block_FF(virtual_address, new_size);
+
+	if(new_size == 0){ // free when new_size = 0
+		kfree(virtual_address);
+		return NULL;
+	}
+
+	if((uint32)virtual_address <= Hard_Limit) // relocate from block allocator -> page allocator
+		return relocate(virtual_address, get_block_size(virtual_address), new_size);
+
+	if(!is_valid_kheap_address((uint32)virtual_address)) // check if address is a valid page start
+		return NULL;
+
+	if(new_size <= DYN_ALLOC_MAX_BLOCK_SIZE) // relocate from page allocator -> block allocator
+		return relocate(virtual_address, new_size, new_size);
+
+	return TREE_realloc(address_to_page(virtual_address), new_size);
 }

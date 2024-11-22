@@ -378,10 +378,7 @@ void *realloc_block_FF(void* va, uint32 new_size)
 	void* new_block = alloc_block_FF(required_size);
 
 	if(new_block != NULL){
-
-		for(int i = 0; i < prev_size; i++)
-			*((char*)new_block + i) = *((char*)va + i);
-
+		memcpy(new_block, va, prev_size);
 		free_block(va);
 	}
 
