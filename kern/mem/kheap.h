@@ -53,7 +53,7 @@ uint32 Hard_Limit;
 #define VAL_MASK (((uint32)1 << 31)-1)
 
 uint32 page_allocator_start;
-uint32 info_tree[2 * PAGES_COUNT + 5];
+uint32* info_tree;
 
 int allocate_and_map_pages(uint32 start_address, uint32 end_address);
 inline bool is_valid_kheap_address(uint32 virtual_address);

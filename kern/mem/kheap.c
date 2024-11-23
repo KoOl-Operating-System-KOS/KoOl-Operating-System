@@ -234,7 +234,11 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
     }
     initialize_dynamic_allocator(daStart, initSizeToAllocate);
 
-    page_allocator_start = Hard_Limit + PAGE_SIZE;
+    info_tree = (void*)(Hard_Limit + PAGE_SIZE);
+    uint32 DS_Size = 2 * PAGES_COUNT * sizeof(int);
+    page_allocator_start = Hard_Limit + PAGE_SIZE + ROUNDUP(DS_Size, PAGE_SIZE);
+    allocate_and_map_pages(Hard_Limit + PAGE_SIZE, page_allocator_start);
+
     update_node(TREE_get_node(0), (KERNEL_HEAP_MAX - page_allocator_start) / PAGE_SIZE, 0);
 
     return 0;
