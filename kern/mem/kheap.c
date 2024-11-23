@@ -30,7 +30,7 @@ int allocate_and_map_pages(uint32 start_address, uint32 end_address)
 }
 
 inline bool is_valid_kheap_address(uint32 virtual_address){
-	return (virtual_address <= KERNEL_HEAP_MAX &&
+	return (virtual_address < KERNEL_HEAP_MAX &&
 			virtual_address >= page_allocator_start &&
 			virtual_address % PAGE_SIZE == 0);
 }
@@ -86,8 +86,9 @@ uint32 TREE_first_fit(uint32 count, uint32* page_idx){
 	uint32 cur = 1, l = 0, r = PAGES_COUNT-1;
 	while(l < r){
 		uint32 mid = (l + r) >> 1;
-		if(get_value(cur << 1) >= count) r = mid, cur <<= 1, *page_idx = r;
-		else l = mid + 1, cur = cur << 1 | 1, *page_idx = l;
+		if(get_value(cur << 1) >= count) r = mid, cur <<= 1;
+		else l = mid + 1, cur = cur << 1 | 1;
+		*page_idx = l;
 	}
 	return cur;
 }
@@ -175,6 +176,9 @@ void* TREE_realloc(uint32 page_idx, uint32 new_size){
 	uint32 nxt = cur + old_count;
 	uint32 next_count = get_free_value(nxt);
 
+	if(old_count + next_count < new_count) // relocate
+		return relocate((void*)(page_allocator_start + page_idx * PAGE_SIZE), old_count * PAGE_SIZE, new_size);
+
 	if(!is_allocated(nxt))
 		update_node(nxt, 0, 0);
 
@@ -190,17 +194,13 @@ void* TREE_realloc(uint32 page_idx, uint32 new_size){
 		}
 	}
 	else{ // expand
-
-		if(old_count + next_count < new_count) // relocate
-			return relocate((void*)(page_allocator_start + page_idx * PAGE_SIZE), old_count * PAGE_SIZE, new_size);
-
 		uint32 cur_va = page_allocator_start + (page_idx + old_count) * PAGE_SIZE, *ptr_page_table;
 
 		for(int i = old_count; i < new_count; i++)
 			set_info(cur + i, 0, 1);
-		set_info(cur, new_count, 1);
-
 	}
+
+	set_info(cur, new_count, 1);
 
 	if(old_count + next_count - new_count > 0)
 		update_node(page_idx + new_count, old_count + next_count - new_count, 0);
@@ -281,7 +281,8 @@ void* kmalloc(unsigned int size)
 	if(size <= DYN_ALLOC_MAX_BLOCK_SIZE)
 		return alloc_block_FF(size);
 
-	return TREE_alloc_FF(ROUNDUP(size,PAGE_SIZE) / PAGE_SIZE);
+	uint32 pages_count = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
+	return TREE_alloc_FF(pages_count);
 }
 
 void kfree(void* virtual_address)
