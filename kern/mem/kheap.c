@@ -301,12 +301,15 @@ unsigned int kheap_physical_address(unsigned int virtual_address)
 {
 	//TODO: [PROJECT'24.MS2 - #05] [1] KERNEL HEAP - kheap_physical_address
 	// Write your code here, remove the panic and write your code
-	panic("kheap_physical_address() is not implemented yet...!!");
-
-	//return the physical address corresponding to given virtual_address
-	//refer to the project presentation and documentation for details
-
-	//EFFICIENT IMPLEMENTATION ~O(1) IS REQUIRED ==================
+	uint32* pageTable = NULL;
+	get_page_table(ptr_page_directory, virtual_address, &pageTable);
+	if(pageTable != NULL){
+		uint32 frame = (pageTable[PTX(virtual_address)]>>12)*PAGE_SIZE;
+		uint32 offset = PGOFF(virtual_address);
+		if(!(frame&(~PERM_PRESENT)))return 0;
+		return ((frame + offset));
+	}
+	return 0;
 }
 
 unsigned int kheap_virtual_address(unsigned int physical_address)
