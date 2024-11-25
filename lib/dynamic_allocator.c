@@ -374,15 +374,15 @@ void *realloc_block_FF(void* va, uint32 new_size)
 		return va;
 	}
 
-
-	void* new_block = alloc_block_FF(required_size);
+	void* new_block = alloc_block_FF(new_size);
 
 	if(new_block != NULL){
-		memcpy(new_block, va, prev_size);
+		memcpy(new_block, va, prev_size - META_DATA_SIZE);
 		free_block(va);
+		return new_block;
 	}
+	else return va;
 
-	return new_block;
 }
 
 /*********************************************************************************************/
