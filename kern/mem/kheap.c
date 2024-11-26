@@ -322,10 +322,11 @@ unsigned int kheap_physical_address(unsigned int virtual_address)
 	uint32* pageTable = NULL;
 	get_page_table(ptr_page_directory, virtual_address, &pageTable);
 	if(pageTable != NULL){
-		uint32 frame = (pageTable[PTX(virtual_address)]>>12)*PAGE_SIZE;
 		uint32 offset = PGOFF(virtual_address);
+		uint32 frame = (pageTable[PTX(virtual_address)]);
+		uint32 physical_addr = (frame & 0xFFFFF000) | offset;
 		if(!(frame&(~PERM_PRESENT)))return 0;
-		return ((frame + offset));
+		return (physical_addr);
 	}
 	return 0;
 }
