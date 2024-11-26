@@ -6,24 +6,38 @@
 
 #define max(a, b) (a > b ? a : b)
 
+void free_and_unmap_pages(uint32 start_address,uint32 frames_count)
+{
+    uint32 current_page = start_address;
+    uint32 * ptr_page_table;
+	for(int i=0;i<frames_count;i++)
+	{
+		free_frame(get_frame_info(ptr_page_directory, current_page, &ptr_page_table));
+		unmap_frame(ptr_page_directory, current_page);
+		current_page += PAGE_SIZE;
+	}
+}
+
 int allocate_and_map_pages(uint32 start_address, uint32 end_address)
 {
     uint32 current_page = start_address;
     uint32 permissions = PERM_PRESENT | PERM_WRITEABLE;
-
+    int ind=0;
     while (current_page < end_address) {
         struct FrameInfo* Frame;
 
         if (allocate_frame(&Frame) != 0) {
+        	free_and_unmap_pages(start_address,ind);
             return -1;
         }
 
         if (map_frame(ptr_page_directory, Frame, current_page, permissions) != 0) {
-            free_frame(Frame);
+        	free_and_unmap_pages(start_address,ind);
             return 0;
         }
 
         current_page += PAGE_SIZE;
+        ind++;
     }
 
     return 1;

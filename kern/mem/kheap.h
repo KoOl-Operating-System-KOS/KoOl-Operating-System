@@ -54,7 +54,7 @@ uint32 Hard_Limit;
 
 uint32 page_allocator_start;
 uint32* info_tree;
-
+void free_and_unmap_pages(uint32 start_address, uint32 frame_count);
 int allocate_and_map_pages(uint32 start_address, uint32 end_address);
 inline bool is_valid_kheap_address(uint32 virtual_address);
 inline uint32 address_to_page(void* virtual_address);

@@ -53,7 +53,22 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 	//==============================================================
 	//TODO: [PROJECT'24.MS2 - #18] [4] SHARED MEMORY [USER SIDE] - smalloc()
 	// Write your code here, remove the panic and write your code
-	panic("smalloc() is not implemented yet...!!");
+	//panic("smalloc() is not implemented yet...!!");
+
+
+	//first check if the there is pages enough for the var size using ff and return the available VAs
+	//if failed return null
+	//else pass the va to the allocation and voila.
+
+
+
+
+
+
+
+
+
+
 	return NULL;
 }
 
@@ -64,7 +79,13 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 {
 	//TODO: [PROJECT'24.MS2 - #20] [4] SHARED MEMORY [USER SIDE] - sget()
 	// Write your code here, remove the panic and write your code
-	panic("sget() is not implemented yet...!!");
+	//panic("sget() is not implemented yet...!!");
+
+	sys_getSizeOfSharedObject(ownerEnvID, sharedVarName);
+
+
+
+
 	return NULL;
 }
 
