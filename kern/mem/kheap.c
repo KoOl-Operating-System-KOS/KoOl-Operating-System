@@ -28,13 +28,10 @@ int allocate_and_map_pages(uint32 start_address, uint32 end_address)
 
         if (allocate_frame(&Frame) != 0) {
         	free_and_unmap_pages(start_address,ind);
-            return -1;
-        }
-
-        if (map_frame(ptr_page_directory, Frame, current_page, permissions) != 0) {
-        	free_and_unmap_pages(start_address,ind);
             return 0;
         }
+
+        map_frame(ptr_page_directory, Frame, current_page, permissions);
 
         current_page += PAGE_SIZE;
         ind++;
@@ -119,7 +116,7 @@ void* TREE_alloc_FF(uint32 count){
 	void* va = (void*)(page_allocator_start + page_idx * PAGE_SIZE);
 	int ecode = allocate_and_map_pages((uint32)va, (uint32)va + count * PAGE_SIZE);
 
-	if(ecode == -1 || ecode == 0) return NULL;
+	if(ecode == 0) return NULL;
 
 	update_node(cur, count, 1);
 	for(int i = 1; i < count; i++)
@@ -247,13 +244,9 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
     Hard_Limit = daLimit;
 
     int result = allocate_and_map_pages(daStart, segment_break);
-    if(result== -1)
+    if(result== 0)
     {
         panic("Failed to allocate frame.");
-    }
-    else if (result== 0)
-    {
-		panic("Failed to map frame to page.");
     }
     initialize_dynamic_allocator(daStart, initSizeToAllocate);
 
@@ -290,7 +283,7 @@ void* sbrk(int numOfPages)
 		return (void*)-1;
 	}
 	int result = allocate_and_map_pages(segment_break,segment_break+added_size);
-	if(result== -1 || result== 0)
+	if(result== 0)
 	{
 		return (void*)-1;
 	}
