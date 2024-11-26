@@ -216,8 +216,17 @@ void* TREE_realloc(uint32 page_idx, uint32 new_size){
 //    Otherwise (if no memory OR initial size exceed the given limit): E_NO_MEM
 int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate, uint32 daLimit)
 {
+	initSizeToAllocate=ROUNDUP(initSizeToAllocate,PAGE_SIZE);
     if(daStart + initSizeToAllocate > daLimit)
         panic("Initial dynamic allocation size exceeds the dynamic allocation's hard limit.");
+    if(!is_valid_kheap_address(daStart))
+    {
+    	panic("Invalid daStart address");
+    }
+    if(!is_valid_kheap_address(daLimit))
+    {
+       	panic("Invalid daLimit address");
+    }
 
     PAGES_COUNT = KHEAP_PAGES_COUNT;
 
@@ -289,15 +298,21 @@ void* kmalloc(unsigned int size)
 		return alloc_block_FF(size);
 
 	uint32 pages_count = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
+	if(isKHeapPlacementStrategyFIRSTFIT())
 	return TREE_alloc_FF(pages_count);
+	return NULL;
 }
 
 void kfree(void* virtual_address)
 {
-	if((uint32)virtual_address <= Hard_Limit)
+	if((uint32)virtual_address <= segment_break-(DYN_ALLOC_MIN_BLOCK_SIZE+META_DATA_SIZE/2))
 		free_block(virtual_address);
-	else if(!is_valid_kheap_address((uint32)virtual_address) || !TREE_free(address_to_page(virtual_address)))
-		panic("Trying to free an address that is not allocated\n");
+	else if(!is_valid_kheap_address((uint32)virtual_address))
+		panic("Invalid address given\n");
+	else if(!TREE_free(address_to_page(virtual_address)))
+	{
+		panic("Address given is not the start of the allocated space\n");
+	}
 }
 
 unsigned int kheap_physical_address(unsigned int virtual_address)
@@ -344,7 +359,7 @@ void *krealloc(void *virtual_address, uint32 new_size)
 	if(virtual_address == NULL) // allocate when va = NULL
 		return kmalloc(new_size);
 
-	if((uint32)virtual_address <= Hard_Limit && new_size <= DYN_ALLOC_MAX_BLOCK_SIZE) // handled in block allocator
+	if((uint32)virtual_address <= segment_break-(DYN_ALLOC_MIN_BLOCK_SIZE+META_DATA_SIZE/2) && new_size <= DYN_ALLOC_MAX_BLOCK_SIZE) // handled in block allocator
 		return realloc_block_FF(virtual_address, new_size);
 
 	if(new_size == 0){ // free when new_size = 0
