@@ -219,6 +219,8 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
     if(daStart + initSizeToAllocate > daLimit)
         panic("Initial dynamic allocation size exceeds the dynamic allocation's hard limit.");
 
+    PAGES_COUNT = KHEAP_PAGES_COUNT;
+
     Kernel_Heap_start = daStart;
     segment_break = daStart+initSizeToAllocate;
     Hard_Limit = daLimit;
@@ -235,8 +237,9 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
     initialize_dynamic_allocator(daStart, initSizeToAllocate);
 
     info_tree = (void*)(Hard_Limit + PAGE_SIZE);
-    uint32 DS_Size = 2 * PAGES_COUNT * sizeof(int);
-    page_allocator_start = Hard_Limit + PAGE_SIZE + ROUNDUP(DS_Size, PAGE_SIZE);
+    uint32 DS_Size = ROUNDUP(PAGES_COUNT * 2 * sizeof(uint32), PAGE_SIZE);
+
+    page_allocator_start = Hard_Limit + PAGE_SIZE + DS_Size;
     allocate_and_map_pages(Hard_Limit + PAGE_SIZE, page_allocator_start);
 
     update_node(TREE_get_node(0), (KERNEL_HEAP_MAX - page_allocator_start) / PAGE_SIZE, 0);
@@ -350,7 +353,7 @@ void *krealloc(void *virtual_address, uint32 new_size)
 	}
 
 	if((uint32)virtual_address <= Hard_Limit) // relocate from block allocator -> page allocator
-		return relocate(virtual_address, get_block_size(virtual_address), new_size);
+		return relocate(virtual_address, get_block_size(virtual_address) - META_DATA_SIZE, new_size);
 
 	if(!is_valid_kheap_address((uint32)virtual_address)) // check if address is a valid page start
 		return NULL;
