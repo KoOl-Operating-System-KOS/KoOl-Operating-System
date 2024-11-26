@@ -168,7 +168,8 @@ void fault_handler(struct Trapframe *tf)
 
 			//bool marked = ptr_page_table[PTX(fault_va)]&PERM_USER;
 
-			bool marked = ptr_page_table[PTX(fault_va)] & PERM_PRESENT;
+			bool marked = ptr_page_table[PTX(fault_va)] & MARKING_BIT;
+			bool present = ptr_page_table[PTX(fault_va)] & PERM_PRESENT;
 
 			//pt_get_page_permission moheeeeeeeeeeeeeeeem!!!!!!!!
 
@@ -176,7 +177,7 @@ void fault_handler(struct Trapframe *tf)
 
 			//CHECK THE KERNEL CONDITION
 
-			if ( writeable==0 || fault_va>=KERNEL_BASE || marked==0 ){
+			if ( writeable==0 || fault_va>=KERNEL_BASE || marked==0 || present == 0 ){
 
             	 env_exit();
 
@@ -257,7 +258,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		//cprintf("PLACEMENT=========================WS Size = %d\n", wsSize );
 		//TODO: [PROJECT'24.MS2 - #09] [2] FAULT HANDLER I - Placement
 		// Write your code here, remove the panic and write your code
-		panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
+		//panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
 
 
 		//allocate and map
