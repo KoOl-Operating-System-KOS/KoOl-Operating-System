@@ -168,7 +168,7 @@ void fault_handler(struct Trapframe *tf)
 
 			//bool marked = ptr_page_table[PTX(fault_va)]&PERM_USER;
 
-			bool marked = ptr_page_table[PTX(fault_va)] & MARKING_BIT;
+			bool marked = ptr_page_table[PTX(fault_va)] & PERM_AVAILABLE;
 			bool present = ptr_page_table[PTX(fault_va)] & PERM_PRESENT;
 
 			//pt_get_page_permission moheeeeeeeeeeeeeeeem!!!!!!!!
@@ -177,11 +177,14 @@ void fault_handler(struct Trapframe *tf)
 
 			//CHECK THE KERNEL CONDITION
 
-			if ( writeable==0 || fault_va>=KERNEL_BASE || marked==0 || present == 0 ){
+			if( fault_va>=KERNEL_BASE && !marked){
+				env_exit();
+			}
+			if ( writeable && !present ){
 
-            	 env_exit();
+            	 	env_exit();
 
-             }
+             		}
 
 			/*============================================================================================*/
 		}
@@ -270,7 +273,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 
 		int allocation = allocate_frame(&frame);
 
-		if(allocation==0 || frame == NULL){
+		if(frame == NULL){
 
 			panic("FAILED ALLOCATION FOR THE FAULT");
 		}
