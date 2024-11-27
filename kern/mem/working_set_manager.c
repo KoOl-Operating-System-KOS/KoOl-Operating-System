@@ -23,7 +23,9 @@ inline struct WorkingSetElement* env_page_ws_list_create_element(struct Env* e, 
 	//Your Code is Here...
 
     struct WorkingSetElement *WS_Element = (struct WorkingSetElement*)kmalloc(sizeof(struct WorkingSetElement));
-
+    if(WS_Element==NULL){
+    	panic("Could not allocate a working set element");
+    }
     WS_Element->virtual_address=virtual_address;
 
     return WS_Element;
