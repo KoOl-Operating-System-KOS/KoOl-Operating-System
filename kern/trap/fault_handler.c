@@ -171,6 +171,7 @@ void fault_handler(struct Trapframe *tf)
 
 			//CHECK THE KERNEL CONDITION
 
+<<<<<<< HEAD
 			if( fault_va>=KERNEL_BASE){
 				env_exit();
 			}
@@ -187,6 +188,16 @@ void fault_handler(struct Trapframe *tf)
 					env_exit();
 				}
 			}
+=======
+			if( fault_va>=KERNEL_BASE && !marked){
+				env_exit();
+			}
+			if ( writeable && !present ){
+
+            	 	env_exit();
+
+             		}
+>>>>>>> fdb0813da3690767f82bf4888ac0bd0ed09d8910
 
 			/*============================================================================================*/
 		}
@@ -275,7 +286,11 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 
 		int allocation = allocate_frame(&frame);
 
+<<<<<<< HEAD
 		if(frame == NULL || allocation != 0){
+=======
+		if(frame == NULL){
+>>>>>>> fdb0813da3690767f82bf4888ac0bd0ed09d8910
 
 			panic("FAILED ALLOCATION FOR THE FAULT");
 		}
