@@ -168,7 +168,7 @@ void fault_handler(struct Trapframe *tf)
 
 			//bool marked = ptr_page_table[PTX(fault_va)]&PERM_USER;
 
-			bool marked = ptr_page_table[PTX(fault_va)] & PERM_AVAILABLE;
+			bool marked = ptr_page_table[PTX(fault_va)] & MARKING_BIT;
 			bool present = ptr_page_table[PTX(fault_va)] & PERM_PRESENT;
 
 			//pt_get_page_permission moheeeeeeeeeeeeeeeem!!!!!!!!
