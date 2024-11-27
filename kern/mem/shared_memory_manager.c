@@ -250,7 +250,10 @@ int getSharedObject(int32 ownerID, char* shareName, void* virtual_address)
 	for(int i=0;i<noFrames;i++){
 
 		map_frame(ptr_page_directory, shared_object->framesStorage[i], (uint32)virtual_address, permissions);
+		shared_object->framesStorage[i]->references++;
 	}
+
+	shared_object->references++;
 
 	return shared_object->ID;
 
