@@ -48,6 +48,12 @@ inline bool is_valid_kheap_address(uint32 virtual_address){
 			virtual_address % PAGE_SIZE == 0);
 }
 
+inline bool is_valid_blockAlloc_address(uint32 virtual_address){
+	return (virtual_address < KERNEL_HEAP_MAX &&
+			virtual_address >= KERNEL_HEAP_START &&
+			virtual_address % PAGE_SIZE == 0);
+}
+
 inline uint32 address_to_page(void* virtual_address){
 	return ((uint32)virtual_address - page_allocator_start) / PAGE_SIZE;
 }
@@ -234,11 +240,11 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
 	initSizeToAllocate=ROUNDUP(initSizeToAllocate,PAGE_SIZE);
     if(daStart + initSizeToAllocate > daLimit)
         panic("Initial dynamic allocation size exceeds the dynamic allocation's hard limit.");
-    if(!is_valid_kheap_address(daStart))
+    if(!is_valid_blockAlloc_address(daStart))
     {
     	panic("Invalid daStart address");
     }
-    if(!is_valid_kheap_address(daLimit))
+    if(!is_valid_blockAlloc_address(daLimit))
     {
        	panic("Invalid daLimit address");
     }
