@@ -5,25 +5,38 @@
 #include "memory_manager.h"
 
 #define max(a, b) (a > b ? a : b)
+int virtual_address_directory[1<<19];
+
+void free_and_unmap_pages(uint32 start_address,uint32 frames_count)
+{
+    uint32 current_page = start_address;
+    uint32 * ptr_page_table;
+    for(int i=0;i<frames_count;i++)
+    {
+        free_frame(get_frame_info(ptr_page_directory, current_page, &ptr_page_table));
+        unmap_frame(ptr_page_directory, current_page);
+        current_page += PAGE_SIZE;
+    }
+}
 
 int allocate_and_map_pages(uint32 start_address, uint32 end_address)
 {
     uint32 current_page = start_address;
     uint32 permissions = PERM_PRESENT | PERM_WRITEABLE;
-
+    int ind=0;
     while (current_page < end_address) {
         struct FrameInfo* Frame;
 
         if (allocate_frame(&Frame) != 0) {
-            return -1;
-        }
-
-        if (map_frame(ptr_page_directory, Frame, current_page, permissions) != 0) {
-            free_frame(Frame);
+            free_and_unmap_pages(start_address,ind);
             return 0;
         }
 
+        map_frame(ptr_page_directory, Frame, current_page, permissions);
+        uint32 frame_number = to_frame_number(Frame);
+        virtual_address_directory[frame_number] = current_page>>12;
         current_page += PAGE_SIZE;
+        ind++;
     }
 
     return 1;
@@ -105,7 +118,7 @@ void* TREE_alloc_FF(uint32 count){
 	void* va = (void*)(page_allocator_start + page_idx * PAGE_SIZE);
 	int ecode = allocate_and_map_pages((uint32)va, (uint32)va + count * PAGE_SIZE);
 
-	if(ecode == -1 || ecode == 0) return NULL;
+	if(ecode == 0) return NULL;
 
 	update_node(cur, count, 1);
 	for(int i = 1; i < count; i++)
@@ -131,7 +144,9 @@ bool TREE_free(uint32 page_idx){
 
 	for(int i = 0; i < count; i++){
 		set_info(cur + i, 0, 0);
-		free_frame(get_frame_info(ptr_page_directory, cur_va, &ptr_page_table));
+		struct FrameInfo *frame = get_frame_info(ptr_page_directory, cur_va, &ptr_page_table);
+		free_frame(frame);
+		virtual_address_directory[to_frame_number(frame)] = 0;
 		unmap_frame(ptr_page_directory, cur_va);
 		cur_va += PAGE_SIZE;
 	}
@@ -235,14 +250,8 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
     Hard_Limit = daLimit;
 
     int result = allocate_and_map_pages(daStart, segment_break);
-    if(result== -1)
-    {
-        panic("Failed to allocate frame.");
-    }
-    else if (result== 0)
-    {
-		panic("Failed to map frame to page.");
-    }
+    if(result== 0)
+    	panic("Failed to allocate frame.");
     initialize_dynamic_allocator(daStart, initSizeToAllocate);
 
     info_tree = (void*)(Hard_Limit + PAGE_SIZE);
@@ -279,7 +288,7 @@ void* sbrk(int numOfPages)
 		return (void*)-1;
 	}
 	int result = allocate_and_map_pages(segment_break,segment_break+added_size);
-	if(result== -1 || result== 0)
+	if(result== 0)
 	{
 		return (void*)-1;
 	}
@@ -335,12 +344,10 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 {
 	//TODO: [PROJECT'24.MS2 - #06] [1] KERNEL HEAP - kheap_virtual_address
 	// Write your code here, remove the panic and write your code
-	panic("kheap_virtual_address() is not implemented yet...!!");
-
-	//return the virtual address corresponding to given physical_address
-	//refer to the project presentation and documentation for details
-
-	//EFFICIENT IMPLEMENTATION ~O(1) IS REQUIRED ==================
+	uint32 frame = (physical_address >> 12);
+	if(virtual_address_directory[frame])
+		return (virtual_address_directory[frame]<<12)|(physical_address & 0x00000FFF);
+	else return 0;
 }
 //=================================================================================//
 //============================== BONUS FUNCTION ===================================//
