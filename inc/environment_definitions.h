@@ -122,6 +122,11 @@ struct Env {
 	//=======================================================================
 	//TODO: [PROJECT'24.MS2 - #10] [3] USER HEAP - add suitable code here
 
+	uint32 uheap_start;
+	uint32 uheap_segment_break;
+	uint32 uheap_hard_limit;
+	uint32 uheap_pages_count;
+
 	//=======================================================================
 	//for page file management
 	uint32* disk_env_pgdir;

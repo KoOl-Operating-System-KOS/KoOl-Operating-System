@@ -1,5 +1,133 @@
 #include <inc/lib.h>
 
+#define ALLOC_FLAG ((uint32)1 << 31)
+#define VAL_MASK (((uint32)1 << 31)-1)
+#define PAGE_ALLOCATOR_START (myEnv->uheap_hard_limit + PAGE_SIZE)
+#define PAGES_COUNT myEnv->uheap_pages_count
+#define max(a, b) (a > b ? a : b)
+
+uint32 info_tree[1<<19];
+bool init = 0;
+
+inline uint32 address_to_page(void* virtual_address){
+	return ((uint32)virtual_address - PAGE_ALLOCATOR_START) / PAGE_SIZE;
+}
+
+inline uint32 set_info(uint32 cur, uint32 val, bool isAllocated){
+	return info_tree[cur] = val | (isAllocated ? ALLOC_FLAG : 0);
+}
+
+inline bool is_allocated(uint32 cur){
+	return (info_tree[cur] & ALLOC_FLAG);
+}
+
+inline uint32 get_free_value(uint32 cur){
+	return (is_allocated(cur) ? 0 : info_tree[cur]);
+}
+
+inline uint32 get_value(uint32 cur){
+	return info_tree[cur] & VAL_MASK;
+}
+
+inline void update_node(uint32 cur, uint32 val, bool isAllocated){
+	set_info(cur, val, isAllocated);
+	cur >>= 1;
+	while(cur){
+		set_info(cur, max(get_free_value(cur << 1), get_free_value(cur << 1 | 1)), 0);
+		cur >>= 1;
+	}
+}
+
+uint32 TREE_get_node(uint32 page_idx){
+	uint32 cur = 1, l = 0, r = PAGES_COUNT-1;
+	while(l < r){
+		uint32 mid = (l + r) >> 1;
+		if(page_idx <= mid) r = mid, cur <<= 1;
+		else l = mid + 1, cur = cur << 1 | 1;
+	}
+	return cur;
+}
+
+uint32 TREE_first_fit(uint32 count, uint32* page_idx){
+	uint32 cur = 1, l = 0, r = PAGES_COUNT-1;
+	while(l < r){
+		uint32 mid = (l + r) >> 1;
+		if(get_free_value(cur << 1) >= count) r = mid, cur <<= 1;
+		else l = mid + 1, cur = cur << 1 | 1;
+		*page_idx = l;
+	}
+	return cur;
+}
+
+void* TREE_alloc_FF(uint32 count){
+
+	if(get_value(1) < count) return NULL;
+
+	uint32 page_idx;
+	uint32 cur = TREE_first_fit(count, &page_idx);
+
+	uint32 free_pages = get_free_value(cur);
+
+	uint32 va = (PAGE_ALLOCATOR_START + page_idx * PAGE_SIZE);
+
+	sys_allocate_user_mem(va, count * PAGE_SIZE);
+
+	update_node(cur, count, 1);
+
+	for(int i = 1; i < count; i++)
+		set_info(cur + i, 0, 1);
+
+	if(free_pages > count)
+		update_node(cur + count, free_pages - count, 0);
+
+	return (void*)va;
+}
+
+bool TREE_free(uint32 page_idx){
+
+	uint32 cur = TREE_get_node(page_idx);
+
+	if(!is_allocated(cur)) return 1; // is already free
+
+	uint32 count = get_value(cur);
+
+	if(count == 0) return 0; // is not a start of an allocation
+
+	uint32 va = PAGE_ALLOCATOR_START + page_idx * PAGE_SIZE;
+
+	sys_free_user_mem(va, count * PAGE_SIZE);
+
+	for(int i = 0; i < count; i++)
+		set_info(cur + i, 0, 0);
+
+	if(!is_allocated(cur + count)){
+		uint32 temp_count = get_free_value(cur + count);
+		update_node(cur + count, 0, 0);
+		count += temp_count;
+	}
+
+	if(page_idx == 0 || is_allocated(cur-1)){
+		update_node(cur, count, 0);
+	}
+	else{
+		int levels = 0, cur_node = cur;
+
+		while(get_value(cur_node) == 0)
+			cur_node >>= 1, levels++;
+
+		while(levels--){
+			if(get_value(cur_node << 1 | 1) > 0)
+				cur_node = cur_node << 1 | 1;
+			else
+				cur_node = cur_node << 1;
+		}
+
+		update_node(cur_node, count + get_free_value(cur_node), 0);
+	}
+
+	return 1;
+}
+
 //==================================================================================//
 //============================ REQUIRED FUNCTIONS ==================================//
 //==================================================================================//
@@ -24,7 +152,21 @@ void* malloc(uint32 size)
 	//==============================================================
 	//TODO: [PROJECT'24.MS2 - #12] [3] USER HEAP [USER SIDE] - malloc()
 	// Write your code here, remove the panic and write your code
-	panic("malloc() is not implemented yet...!!");
+	//panic("malloc() is not implemented yet...!!");
+
+	if(!init){
+		init = 1;
+		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
+		cprintf("PAGES * 2: %u\n\n",myEnv->uheap_pages_count * 2);
+	}
+
+	if(size <= DYN_ALLOC_MAX_BLOCK_SIZE)
+		return alloc_block_FF(size);
+	uint32 pages_count = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
+
+	if(sys_isUHeapPlacementStrategyFIRSTFIT())
+		return TREE_alloc_FF(pages_count);
+
 	return NULL;
 	//Use sys_isUHeapPlacementStrategyFIRSTFIT() and	sys_isUHeapPlacementStrategyBESTFIT()
 	//to check the current strategy
@@ -38,9 +180,18 @@ void free(void* virtual_address)
 {
 	//TODO: [PROJECT'24.MS2 - #14] [3] USER HEAP [USER SIDE] - free()
 	// Write your code here, remove the panic and write your code
-	panic("free() is not implemented yet...!!");
-}
+	//panic("free() is not implemented yet...!!");
 
+	if(!init){
+		init = 1;
+		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
+	}
+
+	if((uint32)virtual_address <= myEnv->uheap_segment_break-(DYN_ALLOC_MIN_BLOCK_SIZE+META_DATA_SIZE/2))
+		free_block(virtual_address);
+	else if(!TREE_free(address_to_page(virtual_address)))
+		panic("Address given is not the start of the allocated space\n");
+}
 
 //=================================
 // [4] ALLOCATE SHARED VARIABLE:

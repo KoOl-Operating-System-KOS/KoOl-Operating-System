@@ -87,12 +87,12 @@ void print_blocks_list(struct MemBlock_LIST list)
 // (MAKE SURE PREVIOUS AND NEXT BLOCKS' DATA ARE SET CORRECTLY BEFORE CALLING)
 void* extend_mapped_region(uint32 size)
 {
-	uint32 no_of_pages=ROUNDUP(size,PAGE_SIZE)/PAGE_SIZE;
+	uint32 no_of_pages = ROUNDUP(size,PAGE_SIZE)/PAGE_SIZE;
 	void* va = sbrk(no_of_pages);
 	if (va == (void*)-1) return NULL;
 
-	va=add_free_block(va,no_of_pages*PAGE_SIZE);
-	alloc(va,size);
+	va = add_free_block(va, no_of_pages * PAGE_SIZE);
+	alloc(va, size);
 	return va;
 }
 
