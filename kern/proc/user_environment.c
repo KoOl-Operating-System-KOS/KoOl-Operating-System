@@ -874,22 +874,30 @@ void* create_user_kern_stack(uint32* ptr_user_page_directory)
     //return a pointer to the start of the allocated space (including the GUARD PAGE)
     //On failure: panic
 
-    void* checker = kmalloc(KERNEL_STACK_SIZE);
+    void* checker = (void*)kmalloc(KERNEL_STACK_SIZE);
 
-    if(checker == NULL)
+    if(checker == NULL){
+
         panic("NOT ENOUGH SPACE, SADLY");
-    else {
-        uint32* pageTable = NULL;
+    }
+    else{
 
-        get_page_table(ptr_user_page_directory, (uint32)checker, &pageTable);
+        uint32* return_page = NULL;
 
-        if(pageTable != NULL){
-        	pageTable[PTX(checker)] = pageTable[PTX(checker)] & (~PERM_PRESENT);
+        get_page_table(ptr_user_page_directory,(uint32)checker,&return_page);
+
+        if(return_page!=NULL){
+
+            return_page[PTX(checker)] = return_page[PTX(checker)] & (~PERM_PRESENT);
 
             return checker;
-        }
-        else
+
+        }else{
+
             panic("NO PAGE FOUND!");
+        }
+
+
     }
 
 #else
