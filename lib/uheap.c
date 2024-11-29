@@ -3,28 +3,11 @@
 #define ALLOC_FLAG ((uint32)1 << 31)
 #define VAL_MASK (((uint32)1 << 31)-1)
 #define PAGE_ALLOCATOR_START (myEnv->uheap_hard_limit + PAGE_SIZE)
-#define PAGES_COUNT myEnv->uheap_pages_count;
+#define PAGES_COUNT myEnv->uheap_pages_count
 #define max(a, b) (a > b ? a : b)
 
-uint32 info_tree[1<<20];
+uint32 info_tree[1<<21];
 bool init = 0;
-
-void initialize(){
-	init = 1;
-
-	uint32 cur = 1, l = 0, r = PAGES_COUNT-1;
-	while(l < r)
-		r = ((l + r) >> 1), cur <<= 1;
-
-	uint32 free_pages = (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE;
-	info_tree[cur] = free_pages;
-
-	cur >>= 1;
-	while(cur){
-		info_tree[cur] = free_pages;
-		cur >>= 1;
-	}
-}
 
 inline uint32 address_to_page(void* virtual_address){
 	return ((uint32)virtual_address - PAGE_ALLOCATOR_START) / PAGE_SIZE;
@@ -82,7 +65,7 @@ void* TREE_alloc_FF(uint32 count){
 
 	uint32 page_idx;
 	uint32 cur = TREE_first_fit(count, &page_idx);
-	//cprintf("First Fit: %u\n\n", page_idx);
+
 	uint32 free_pages = get_free_value(cur);
 
 	uint32 va = (PAGE_ALLOCATOR_START + page_idx * PAGE_SIZE);
@@ -171,22 +154,17 @@ void* malloc(uint32 size)
 	// Write your code here, remove the panic and write your code
 	//panic("malloc() is not implemented yet...!!");
 
-	if(!init) initialize();
+	if(!init){
+		init = 1;
+		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
+	}
 
 	if(size <= DYN_ALLOC_MAX_BLOCK_SIZE)
 		return alloc_block_FF(size);
 	uint32 pages_count = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
-	//cprintf("SIZE: %u\n", size);
-	//cprintf("PAGES: %u\n", pages_count);
-	if(sys_isUHeapPlacementStrategyFIRSTFIT()){
-		void* va = TREE_alloc_FF(pages_count);
-		//cprintf("ADDRESS: %u\n\n", va);
 
-		//*(int*)point = 178;
-		//cprintf("VALUE: %d\n\n", *(int*)va);
-
-		return va;
-	}
+	if(sys_isUHeapPlacementStrategyFIRSTFIT())
+		return TREE_alloc_FF(pages_count);
 
 	return NULL;
 	//Use sys_isUHeapPlacementStrategyFIRSTFIT() and	sys_isUHeapPlacementStrategyBESTFIT()
@@ -203,7 +181,10 @@ void free(void* virtual_address)
 	// Write your code here, remove the panic and write your code
 	//panic("free() is not implemented yet...!!");
 
-	if(!init) initialize();
+	if(!init){
+		init = 1;
+		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
+	}
 
 	if((uint32)virtual_address <= myEnv->uheap_segment_break-(DYN_ALLOC_MIN_BLOCK_SIZE+META_DATA_SIZE/2))
 		free_block(virtual_address);

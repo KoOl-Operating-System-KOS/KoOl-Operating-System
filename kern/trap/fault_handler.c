@@ -154,43 +154,31 @@ void fault_handler(struct Trapframe *tf)
 			//(e.g. pointing to unmarked user heap page, kernel or wrong access rights),
 			//your code is here
 
-			uint32* ptr_page_table=NULL;
+			uint32* ptr_page_table = NULL;
 
-			get_page_table(ptr_page_directory,fault_va,&ptr_page_table);
+			get_page_table(faulted_env->env_page_directory, fault_va, &ptr_page_table);
 
-			if(!(fault_va < USTACKTOP && fault_va>=USTACKBOTTOM)){
-
-			if(ptr_page_table==NULL){
-
-				env_exit();
-			}
-
-			bool writeable = ptr_page_table[PTX(fault_va)]&PERM_WRITEABLE;
-
-			bool marked = ptr_page_table[PTX(fault_va)] & MARKING_BIT;
-			bool present = ptr_page_table[PTX(fault_va)] & PERM_PRESENT;
-
-			//CHECK THE KERNEL CONDITION
-
-			if( fault_va>=KERNEL_BASE){
-
-				env_exit();
-			}
-
-			if (present && !writeable){
-
-
-            	 	env_exit();
-            }
-
-			if(fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX){
-
-				if(!marked){
-
+			if(!(fault_va < USTACKTOP && fault_va >= USTACKBOTTOM)){
+				if(ptr_page_table == NULL)
 					env_exit();
 
+				bool writeable = ptr_page_table[PTX(fault_va)]&PERM_WRITEABLE;
+
+				bool marked = ptr_page_table[PTX(fault_va)] & MARKING_BIT;
+				bool present = ptr_page_table[PTX(fault_va)] & PERM_PRESENT;
+
+				//CHECK THE KERNEL CONDITION
+
+				if( fault_va>=KERNEL_BASE)
+					env_exit();
+
+				if (present && !writeable)
+					env_exit();
+
+				if(fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX){
+					if(!marked)
+						env_exit();
 				}
-			}
 			}
 			/*============================================================================================*/
 		}
@@ -258,7 +246,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		struct WorkingSetElement *victimWSElement = NULL;
 		uint32 wsSize = LIST_SIZE(&(faulted_env->page_WS_list));
 #else
-		int iWS =faulted_env->page_last_WS_index;
+		int iWS = faulted_env->page_last_WS_index;
 		uint32 wsSize = env_page_ws_get_size(faulted_env);
 #endif
 
