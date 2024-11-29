@@ -5,15 +5,17 @@
 #include "memory_manager.h"
 
 #define max(a, b) (a > b ? a : b)
-int virtual_address_directory[1048576];
+uint32 virtual_address_directory[1<<20];
 
 void free_and_unmap_pages(uint32 start_address,uint32 frames_count)
 {
     uint32 current_page = start_address;
     uint32 * ptr_page_table;
-    for(int i=0;i<frames_count;i++)
+    for(int i = 0; i < frames_count; i++)
     {
-        free_frame(get_frame_info(ptr_page_directory, current_page, &ptr_page_table));
+    	struct FrameInfo *frame = get_frame_info(ptr_page_directory, current_page, &ptr_page_table);
+        free_frame(frame);
+        virtual_address_directory[to_frame_number(frame)] = -1;
         unmap_frame(ptr_page_directory, current_page);
         current_page += PAGE_SIZE;
     }
@@ -27,14 +29,16 @@ int allocate_and_map_pages(uint32 start_address, uint32 end_address)
     while (current_page < end_address) {
         struct FrameInfo* Frame;
 
-        if (allocate_frame(&Frame) != 0) {
-            free_and_unmap_pages(start_address,ind);
-            return 0;
-        }
+		if (allocate_frame(&Frame) != 0) {
+			free_and_unmap_pages(start_address,ind);
+			return 0;
+		}
 
-        map_frame(ptr_page_directory, Frame, current_page, permissions);
-        uint32 frame_number = to_frame_number(Frame);
-        virtual_address_directory[frame_number] = current_page>>12;
+		map_frame(ptr_page_directory, Frame, current_page, permissions);
+
+		uint32 frame_number = to_frame_number(Frame);
+		virtual_address_directory[frame_number] = current_page >> 12;
+
         current_page += PAGE_SIZE;
         ind++;
     }
@@ -71,7 +75,7 @@ inline uint32 set_info(uint32 cur, uint32 val, bool isAllocated){
 }
 
 inline bool is_allocated(uint32 cur){
-	return (info_tree[cur] & ALLOC_FLAG);
+	return ((info_tree[cur] & ALLOC_FLAG) != 0);
 }
 
 inline uint32 get_free_value(uint32 cur){
@@ -105,7 +109,7 @@ uint32 TREE_first_fit(uint32 count, uint32* page_idx){
 	uint32 cur = 1, l = 0, r = PAGES_COUNT-1;
 	while(l < r){
 		uint32 mid = (l + r) >> 1;
-		if(get_value(cur << 1) >= count) r = mid, cur <<= 1;
+		if(get_free_value(cur << 1) >= count) r = mid, cur <<= 1;
 		else l = mid + 1, cur = cur << 1 | 1;
 		*page_idx = l;
 	}
@@ -118,7 +122,6 @@ void* TREE_alloc_FF(uint32 count){
 
 	uint32 page_idx;
 	uint32 cur = TREE_first_fit(count, &page_idx);
-
 	uint32 free_pages = get_free_value(cur);
 
 	void* va = (void*)(page_allocator_start + page_idx * PAGE_SIZE);
@@ -146,16 +149,12 @@ bool TREE_free(uint32 page_idx){
 
 	if(count == 0) return 0; // is not a start of an allocation
 
-	uint32 cur_va = page_allocator_start + page_idx * PAGE_SIZE, *ptr_page_table;
+	uint32 va = page_allocator_start + page_idx * PAGE_SIZE, *ptr_page_table;
 
-	for(int i = 0; i < count; i++){
+	free_and_unmap_pages(va, count);
+
+	for(int i = 0; i < count; i++)
 		set_info(cur + i, 0, 0);
-		struct FrameInfo *frame = get_frame_info(ptr_page_directory, cur_va, &ptr_page_table);
-		free_frame(frame);
-		virtual_address_directory[to_frame_number(frame)] = 0;
-		unmap_frame(ptr_page_directory, cur_va);
-		cur_va += PAGE_SIZE;
-	}
 
 	if(!is_allocated(cur + count)){
 		uint32 temp_count = get_free_value(cur + count);
@@ -205,17 +204,18 @@ void* TREE_realloc(uint32 page_idx, uint32 new_size){
 
 	if(new_count <= old_count){ // shrink
 
-		uint32 cur_va = page_allocator_start + (page_idx + new_count) * PAGE_SIZE, *ptr_page_table;
+		uint32 va = page_allocator_start + (page_idx + new_count) * PAGE_SIZE, *ptr_page_table;
+		free_and_unmap_pages(va, old_count - new_count);
 
-		for(int i = new_count; i < old_count; i++){
+		for(int i = new_count; i < old_count; i++)
 			set_info(cur + i, 0, 0);
-			free_frame(get_frame_info(ptr_page_directory, cur_va, &ptr_page_table));
-			unmap_frame(ptr_page_directory, cur_va);
-			cur_va += PAGE_SIZE;
-		}
+
 	}
 	else{ // expand
-		uint32 cur_va = page_allocator_start + (page_idx + old_count) * PAGE_SIZE, *ptr_page_table;
+		uint32 va = page_allocator_start + (page_idx + old_count) * PAGE_SIZE, *ptr_page_table;
+
+		if(!allocate_and_map_pages(va, va + (page_idx + new_count) * PAGE_SIZE))
+			return NULL;
 
 		for(int i = old_count; i < new_count; i++)
 			set_info(cur + i, 0, 1);
@@ -237,27 +237,30 @@ void* TREE_realloc(uint32 page_idx, uint32 new_size){
 //    Otherwise (if no memory OR initial size exceed the given limit): E_NO_MEM
 int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate, uint32 daLimit)
 {
-	initSizeToAllocate=ROUNDUP(initSizeToAllocate,PAGE_SIZE);
+	initSizeToAllocate = ROUNDUP(initSizeToAllocate, PAGE_SIZE);
+
     if(daStart + initSizeToAllocate > daLimit)
         panic("Initial dynamic allocation size exceeds the dynamic allocation's hard limit.");
+
     if(!is_valid_blockAlloc_address(daStart))
-    {
     	panic("Invalid daStart address");
-    }
+
     if(!is_valid_blockAlloc_address(daLimit))
-    {
        	panic("Invalid daLimit address");
-    }
 
     PAGES_COUNT = KHEAP_PAGES_COUNT;
 
     Kernel_Heap_start = daStart;
-    segment_break = daStart+initSizeToAllocate;
+    segment_break = daStart + initSizeToAllocate;
     Hard_Limit = daLimit;
 
+    memset(virtual_address_directory, -1, sizeof virtual_address_directory);
+
     int result = allocate_and_map_pages(daStart, segment_break);
-    if(result== 0)
+
+    if(result == 0)
     	panic("Failed to allocate frame.");
+
     initialize_dynamic_allocator(daStart, initSizeToAllocate);
 
     info_tree = (void*)(Hard_Limit + PAGE_SIZE);
@@ -283,25 +286,22 @@ void* sbrk(int numOfPages)
 	 * 		or the break exceed the limit of the dynamic allocator. If sbrk fails, return -1
 	 */
 
-	uint32 added_size= numOfPages*PAGE_SIZE;
-	uint32 old_segment_break=segment_break;
+	uint32 added_size = numOfPages * PAGE_SIZE;
+	uint32 old_segment_break = segment_break;
 	if(numOfPages== 0)
-	{
 		return (void*)segment_break;
-	}
-	if(segment_break+added_size>Hard_Limit)
-	{
+	if(segment_break + added_size > Hard_Limit)
 		return (void*)-1;
-	}
-	int result = allocate_and_map_pages(segment_break,segment_break+added_size);
-	if(result== 0)
-	{
+
+	int result = allocate_and_map_pages(segment_break, segment_break + added_size);
+
+	if(result == 0)
 		return (void*)-1;
-	}
-	uint32* old_end_block=(uint32*)(old_segment_break-META_DATA_SIZE/2);
-	*old_end_block=0;
-	segment_break = segment_break+added_size;
-	uint32* END_Block=(uint32*)(segment_break-META_DATA_SIZE/2);
+
+	uint32* old_end_block = (uint32*)(old_segment_break - META_DATA_SIZE / 2);
+	*old_end_block = 0;
+	segment_break = segment_break + added_size;
+	uint32* END_Block = (uint32*)(segment_break-META_DATA_SIZE / 2);
 	*END_Block = 1;
 
 	return (void*)old_segment_break;
@@ -313,8 +313,10 @@ void* kmalloc(unsigned int size)
 		return alloc_block_FF(size);
 
 	uint32 pages_count = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
+
 	if(isKHeapPlacementStrategyFIRSTFIT())
-	return TREE_alloc_FF(pages_count);
+		return TREE_alloc_FF(pages_count);
+
 	return NULL;
 }
 
@@ -325,15 +327,12 @@ void kfree(void* virtual_address)
 	else if(!is_valid_kheap_address((uint32)virtual_address))
 		panic("Invalid address given\n");
 	else if(!TREE_free(address_to_page(virtual_address)))
-	{
 		panic("Address given is not the start of the allocated space\n");
-	}
+
 }
 
 unsigned int kheap_physical_address(unsigned int virtual_address)
 {
-	//TODO: [PROJECT'24.MS2 - #05] [1] KERNEL HEAP - kheap_physical_address
-	// Write your code here, remove the panic and write your code
 	uint32* pageTable = NULL;
 	get_page_table(ptr_page_directory, virtual_address, &pageTable);
 	if(pageTable != NULL){
@@ -348,12 +347,11 @@ unsigned int kheap_physical_address(unsigned int virtual_address)
 
 unsigned int kheap_virtual_address(unsigned int physical_address)
 {
-	//TODO: [PROJECT'24.MS2 - #06] [1] KERNEL HEAP - kheap_virtual_address
-	// Write your code here, remove the panic and write your code
 	uint32 frame = (physical_address >> 12);
-	if(virtual_address_directory[frame])
+
+	if(virtual_address_directory[frame] != -1)
 		return (virtual_address_directory[frame]<<12)|(physical_address & 0x00000FFF);
-	else return 0;
+	return 0;
 }
 //=================================================================================//
 //============================== BONUS FUNCTION ===================================//
@@ -373,7 +371,7 @@ void *krealloc(void *virtual_address, uint32 new_size)
 	if(virtual_address == NULL) // allocate when va = NULL
 		return kmalloc(new_size);
 
-	if((uint32)virtual_address <= segment_break-(DYN_ALLOC_MIN_BLOCK_SIZE+META_DATA_SIZE/2) && new_size <= DYN_ALLOC_MAX_BLOCK_SIZE) // handled in block allocator
+	if((uint32)virtual_address <= segment_break-(DYN_ALLOC_MIN_BLOCK_SIZE + META_DATA_SIZE / 2) && new_size <= DYN_ALLOC_MAX_BLOCK_SIZE) // handled in block allocator
 		return realloc_block_FF(virtual_address, new_size);
 
 	if(new_size == 0){ // free when new_size = 0

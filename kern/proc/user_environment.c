@@ -874,33 +874,22 @@ void* create_user_kern_stack(uint32* ptr_user_page_directory)
     //return a pointer to the start of the allocated space (including the GUARD PAGE)
     //On failure: panic
 
-    uint32* checker = kmalloc(KERNEL_STACK_SIZE);
+    void* checker = kmalloc(KERNEL_STACK_SIZE);
 
-    if(checker == NULL){
-
+    if(checker == NULL)
         panic("NOT ENOUGH SPACE, SADLY");
-    }
-    else{
+    else {
+        uint32* pageTable = NULL;
 
+        get_page_table(ptr_user_page_directory, (uint32)checker, &pageTable);
 
-        uint32* guard_pointer = checker;
-
-        uint32* return_page = NULL;
-
-        get_page_table(ptr_user_page_directory,*guard_pointer,&return_page);
-
-        if(return_page!=NULL){
-
-            return_page[PTX(guard_pointer)] = return_page[PTX(guard_pointer)] & (~PERM_PRESENT);
+        if(pageTable != NULL){
+        	pageTable[PTX(checker)] = pageTable[PTX(checker)] & (~PERM_PRESENT);
 
             return checker;
-
-        }else{
-
-            cprintf("NO PAGE FOUND!\n");
         }
-
-
+        else
+            panic("NO PAGE FOUND!");
     }
 
 #else
@@ -1244,5 +1233,3 @@ void cleanup_buffers(struct Env* e)
 	//	struct freeFramesCounters ffc2 = calculate_available_frames();
 	//	cprintf("[%s] aft, mod = %d, fb = %d, fnb = %d\n",curenv->prog_name, ffc2.modified, ffc2.freeBuffered, ffc2.freeNotBuffered);
 }
-
-
