@@ -5,7 +5,7 @@
 #include "memory_manager.h"
 
 #define max(a, b) (a > b ? a : b)
-int virtual_address_directory[1<<19];
+int virtual_address_directory[1048576];
 
 void free_and_unmap_pages(uint32 start_address,uint32 frames_count)
 {
