@@ -206,17 +206,13 @@ int createSharedObject(int32 ownerID, char* shareName, uint32 size, uint8 isWrit
 	for(int i=0;i<noFrames;i++){
 
 		struct FrameInfo* Frame;
-        if (allocate_frame(&Frame) != 0) {
-        	free_and_unmap_pages((uint32)virtual_address,i);
-        	return E_NO_SHARE;
-        }
 
-        if (map_frame(ptr_page_directory, Frame, current_page, permissions) != 0) {
-        	free_and_unmap_pages((uint32)virtual_address,i);
-        	return E_NO_SHARE;
-        }
-        ret->framesStorage[i]=Frame;
-        current_page+=PAGE_SIZE;
+		allocate_frame(&Frame);
+
+		map_frame(myenv->env_page_directory, Frame, current_page, permissions);
+
+		ret->framesStorage[i]=Frame;
+		current_page+=PAGE_SIZE;
 
 	}
 	//allocate and map the shared object in physical memory at the passed va and then
@@ -249,7 +245,7 @@ int getSharedObject(int32 ownerID, char* shareName, void* virtual_address)
 	uint32 permissions = PERM_PRESENT | shared_object->isWritable;
 	for(int i=0;i<noFrames;i++){
 
-		map_frame(ptr_page_directory, shared_object->framesStorage[i], (uint32)virtual_address, permissions);
+		map_frame(myenv->env_page_directory, shared_object->framesStorage[i], (uint32)virtual_address, permissions);
 		shared_object->framesStorage[i]->references++;
 	}
 

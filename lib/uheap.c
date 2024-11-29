@@ -198,29 +198,20 @@ void free(void* virtual_address)
 //=================================
 void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 {
-	//==============================================================
-	//DON'T CHANGE THIS CODE========================================
-	if (size == 0) return NULL ;
-	//==============================================================
-	//TODO: [PROJECT'24.MS2 - #18] [4] SHARED MEMORY [USER SIDE] - smalloc()
-	// Write your code here, remove the panic and write your code
-	//panic("smalloc() is not implemented yet...!!");
+	 if (size == 0) return NULL ;
 
+	 void* va =TREE_alloc_ff(size);
 
-	//first check if the there is pages enough for the var size using ff and return the available VAs
-	//if failed return null
-	//else pass the va to the allocation and voila.
-
-
-
-
-
-
-
-
-
-
-	return NULL;
+	 if(va == NULL)
+	 {
+		 return NULL;
+	 }
+	 int ret=sys_createSharedObject(sharedVarName,size,isWritable,va); //ret->id??
+	 if(ret==E_NO_SHARE || ret==E_SHARED_MEM_EXISTS)
+	 {
+		 return NULL;
+	 }
+	 return va;
 }
 
 //========================================
@@ -232,12 +223,23 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 	// Write your code here, remove the panic and write your code
 	//panic("sget() is not implemented yet...!!");
 
-	sys_getSizeOfSharedObject(ownerEnvID, sharedVarName);
+	int size =sys_getSizeOfSharedObject(ownerEnvID, sharedVarName);
 
+	if(size == E_SHARED_MEM_NOT_EXISTS)
+		return NULL;
 
+	void* va =TREE_alloc_ff(size);
 
-
-	return NULL;
+	 if(va == NULL)
+	 {
+		 return NULL;
+	 }
+	 int ret=sys_getSharedObject(ownerEnvID,sharedVarName,va); //ret->id??
+	 if(ret==E_SHARED_MEM_EXISTS)
+	 {
+		 return NULL;
+	 }
+	 return va;
 }
 
 
