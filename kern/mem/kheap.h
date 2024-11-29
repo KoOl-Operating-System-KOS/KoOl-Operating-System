@@ -41,18 +41,22 @@ unsigned int kheap_physical_address(unsigned int virtual_address);
 
 int numOfKheapVACalls ;
 
-
 //TODO: [PROJECT'24.MS2 - #01] [1] KERNEL HEAP - add suitable code here
 
 uint32 Kernel_Heap_start;
 uint32 segment_break;
 uint32 Hard_Limit;
 
-#define PAGES_COUNT (1<<19)
+
+#define MST(X) (31 - __builtin_clz(X))
+#define CEIL_POWER_OF_2(X) ((1 << MST((X))) * (1 + (((X) & ((X)-1)) > 0)))
+
+#define KHEAP_PAGES_COUNT (CEIL_POWER_OF_2(NUM_OF_KHEAP_PAGES + 2))
 #define ALLOC_FLAG ((uint32)1 << 31)
 #define VAL_MASK (((uint32)1 << 31)-1)
 
 uint32 page_allocator_start;
+uint32 PAGES_COUNT;
 uint32* info_tree;
 
 int allocate_and_map_pages(uint32 start_address, uint32 end_address);

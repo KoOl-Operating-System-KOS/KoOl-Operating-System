@@ -247,8 +247,8 @@ int tst_dyn_alloc(int number_of_arguments, char **arguments)
 	// Test 8 Example for realloc_block_ff: tstdynalloc reallocFF
 	else if(strcmp(arguments[1], "reallocff") == 0)
 	{
-		test_realloc_block_FF();
-		//test_realloc_block_FF_COMPLETE();
+		//test_realloc_block_FF();
+		test_realloc_block_FF_COMPLETE();
 	}
 	return 0;
 }

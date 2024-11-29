@@ -12,6 +12,8 @@
 #include <kern/disk/pagefile_manager.h>
 #include <kern/mem/memory_manager.h>
 
+
+
 //2014 Test Free(): Set it to bypass the PAGE FAULT on an instruction with this length and continue executing the next one
 // 0 means don't bypass the PAGE FAULT
 uint8 bypassInstrLength = 0;
@@ -152,6 +154,35 @@ void fault_handler(struct Trapframe *tf)
 			//(e.g. pointing to unmarked user heap page, kernel or wrong access rights),
 			//your code is here
 
+			//check bounderies of heap
+
+			uint32* ptr_page_table=NULL;
+
+			get_page_table(ptr_page_directory,fault_va,&ptr_page_table);
+
+			if(ptr_page_table==NULL){
+				env_exit();
+			}
+
+			bool writeable = ptr_page_table[PTX(fault_va)]&PERM_WRITEABLE;
+
+			//bool marked = ptr_page_table[PTX(fault_va)]&PERM_USER;
+
+			bool marked = ptr_page_table[PTX(fault_va)] & MARKING_BIT;
+			bool present = ptr_page_table[PTX(fault_va)] & PERM_PRESENT;
+
+			//pt_get_page_permission moheeeeeeeeeeeeeeeem!!!!!!!!
+
+			//present is the marking no special marking
+
+			//CHECK THE KERNEL CONDITION
+
+			if ( writeable==0 || fault_va>=KERNEL_BASE || marked==0 || present == 0 ){
+
+            	 env_exit();
+
+             }
+
 			/*============================================================================================*/
 		}
 
@@ -227,19 +258,62 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		//cprintf("PLACEMENT=========================WS Size = %d\n", wsSize );
 		//TODO: [PROJECT'24.MS2 - #09] [2] FAULT HANDLER I - Placement
 		// Write your code here, remove the panic and write your code
-		panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
+		//panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
 
-		//refer to the project presentation and documentation for details
+
+		//allocate and map
+		//read
+		//redesign this func
+		//normal allocation and mapping
+
+		struct FrameInfo *frame = NULL;
+
+		int allocation = allocate_frame(&frame);
+
+		if(allocation==0 || frame == NULL){
+
+			panic("FAILED ALLOCATION FOR THE FAULT");
+		}
+
+        map_frame(faulted_env->env_page_directory, frame, fault_va, PERM_WRITEABLE | PERM_USER);
+
+		int ret = pf_read_env_page(faulted_env,(void*)fault_va);
+
+
+		if(ret == E_PAGE_NOT_EXIST_IN_PF){
+
+			if (fault_va >= KERNEL_HEAP_START && fault_va < KERNEL_HEAP_MAX){
+
+
+				env_exit();
+			}
+
+		}
+
+        struct WorkingSetElement* WsElement = env_page_ws_list_create_element(faulted_env, fault_va);
+
+        LIST_INSERT_TAIL(&(faulted_env->page_WS_list), WsElement);
+        if (LIST_SIZE(&(faulted_env->page_WS_list)) == faulted_env->page_WS_max_size){
+
+        	faulted_env->page_last_WS_element = LIST_FIRST(&(faulted_env->page_WS_list));
+        }
+        else
+       {
+        	faulted_env->page_last_WS_element = NULL;
+       }
+
 	}
+
 	else
 	{
 		//cprintf("REPLACEMENT=========================WS Size = %d\n", wsSize );
 		//refer to the project presentation and documentation for details
 		//TODO: [PROJECT'24.MS3] [2] FAULT HANDLER II - Replacement
 		// Write your code here, remove the panic and write your code
-		panic("page_fault_handler() Replacement is not implemented yet...!!");
+	    panic("page_fault_handler() Replacement is not implemented yet...!!");
 	}
 }
+
 
 void __page_fault_handler_with_buffering(struct Env * curenv, uint32 fault_va)
 {
@@ -247,4 +321,3 @@ void __page_fault_handler_with_buffering(struct Env * curenv, uint32 fault_va)
 	// your code is here, remove the panic and write your code
 	panic("__page_fault_handler_with_buffering() is not implemented yet...!!");
 }
-

@@ -865,23 +865,40 @@ uint32 __cur_k_stk = KERNEL_HEAP_START;
 void* create_user_kern_stack(uint32* ptr_user_page_directory)
 {
 #if USE_KHEAP
-	//TODO: [PROJECT'24.MS2 - #07] [2] FAULT HANDLER I - create_user_kern_stack
-	// Write your code here, remove the panic and write your code
-	panic("create_user_kern_stack() is not implemented yet...!!");
+    //TODO: [PROJECT'24.MS2 - #07] [2] FAULT HANDLER I - create_user_kern_stack
+    // Write your code here, remove the panic and write your code
+    //panic("create_user_kern_stack() is not implemented yet...!!");
 
-	//allocate space for the user kernel stack.
-	//remember to leave its bottom page as a GUARD PAGE (i.e. not mapped)
-	//return a pointer to the start of the allocated space (including the GUARD PAGE)
-	//On failure: panic
+    //allocate space for the user kernel stack.
+    //remember to leave its bottom page as a GUARD PAGE (i.e. not mapped)
+    //return a pointer to the start of the allocated space (including the GUARD PAGE)
+    //On failure: panic
 
+    void* checker = kmalloc(KERNEL_STACK_SIZE);
+
+    if(checker == NULL)
+        panic("NOT ENOUGH SPACE, SADLY");
+    else {
+        uint32* pageTable = NULL;
+
+        get_page_table(ptr_user_page_directory, (uint32)checker, &pageTable);
+
+        if(pageTable != NULL){
+        	pageTable[PTX(checker)] = pageTable[PTX(checker)] & (~PERM_PRESENT);
+
+            return checker;
+        }
+        else
+            panic("NO PAGE FOUND!");
+    }
 
 #else
-	if (KERNEL_HEAP_MAX - __cur_k_stk < KERNEL_STACK_SIZE)
-		panic("Run out of kernel heap!! Unable to create a kernel stack for the process. Can't create more processes!");
-	void* kstack = (void*) __cur_k_stk;
-	__cur_k_stk += KERNEL_STACK_SIZE;
-	return kstack ;
-//	panic("KERNEL HEAP is OFF! user kernel stack is not supported");
+    if (KERNEL_HEAP_MAX - __cur_k_stk < KERNEL_STACK_SIZE)
+        panic("Run out of kernel heap!! Unable to create a kernel stack for the process. Can't create more processes!");
+    void* kstack = (void*) __cur_k_stk;
+    __cur_k_stk += KERNEL_STACK_SIZE;
+    return kstack ;
+//    panic("KERNEL HEAP is OFF! user kernel stack is not supported");
 #endif
 }
 
@@ -1225,5 +1242,3 @@ void cleanup_buffers(struct Env* e)
 	//	struct freeFramesCounters ffc2 = calculate_available_frames();
 	//	cprintf("[%s] aft, mod = %d, fb = %d, fnb = %d\n",curenv->prog_name, ffc2.modified, ffc2.freeBuffered, ffc2.freeNotBuffered);
 }
-
-
