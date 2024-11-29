@@ -6,7 +6,7 @@
 #define PAGES_COUNT myEnv->uheap_pages_count
 #define max(a, b) (a > b ? a : b)
 
-uint32 info_tree[1<<21];
+uint32 info_tree[1<<19];
 bool init = 0;
 
 inline uint32 address_to_page(void* virtual_address){
@@ -157,6 +157,7 @@ void* malloc(uint32 size)
 	if(!init){
 		init = 1;
 		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
+		cprintf("PAGES * 2: %u\n\n",myEnv->uheap_pages_count * 2);
 	}
 
 	if(size <= DYN_ALLOC_MAX_BLOCK_SIZE)
