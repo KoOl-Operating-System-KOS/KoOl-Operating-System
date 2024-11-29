@@ -269,6 +269,7 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
     page_allocator_start = Hard_Limit + PAGE_SIZE + DS_Size;
     allocate_and_map_pages(Hard_Limit + PAGE_SIZE, page_allocator_start);
 
+    memset(info_tree, 0, DS_Size);
     update_node(TREE_get_node(0), (KERNEL_HEAP_MAX - page_allocator_start) / PAGE_SIZE, 0);
 
     return 0;
@@ -301,7 +302,7 @@ void* sbrk(int numOfPages)
 	uint32* old_end_block = (uint32*)(old_segment_break - META_DATA_SIZE / 2);
 	*old_end_block = 0;
 	segment_break = segment_break + added_size;
-	uint32* END_Block = (uint32*)(segment_break-META_DATA_SIZE / 2);
+	char* END_Block = (char*)(segment_break - META_DATA_SIZE / 2);
 	*END_Block = 1;
 
 	return (void*)old_segment_break;

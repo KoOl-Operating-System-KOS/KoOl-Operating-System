@@ -932,11 +932,14 @@ void initialize_uheap_dynamic_allocator(struct Env* e, uint32 daStart, uint32 da
 	//	2) call the initialize_dynamic_allocator(..) to complete the initialization
 	//panic("initialize_uheap_dynamic_allocator() is not implemented yet...!!");
 
-	e->User_Heap_start = daStart;
-    e->User_Heap_Hard_Limit = daLimit;
-    e->User_Heap_segment_break=0;
+	uint32 pages_count = NUM_OF_UHEAP_PAGES;
 
-    initialize_dynamic_allocator(daStart,0);
+	e->uheap_start = daStart;
+	e->uheap_segment_break = daStart;
+	e->uheap_hard_limit = daLimit;
+	e->uheap_pages_count = (1 << (31 - __builtin_clz(pages_count))) * (1 + (((pages_count) & (pages_count-1)) > 0));
+
+	initialize_dynamic_allocator(daStart, 0);
 
 }
 

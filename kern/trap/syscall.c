@@ -316,8 +316,10 @@ void sys_allocate_user_mem(uint32 virtual_address, uint32 size)
 {
 	//TODO: [PROJECT'24.MS1 - #03] [2] SYSTEM CALLS - Params Validation
 	if (virtual_address == 0 || virtual_address > USER_HEAP_MAX || virtual_address < USER_HEAP_START)
-			env_exit();
+		env_exit();
+
 	allocate_user_mem(cur_env, virtual_address, size);
+
 	return;
 }
 
