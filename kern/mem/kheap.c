@@ -21,18 +21,6 @@ void free_and_unmap_pages(uint32 start_address,uint32 frames_count)
     }
 }
 
-void free_and_unmap_pages(uint32 start_address,uint32 frames_count)
-{
-    uint32 current_page = start_address;
-    uint32 * ptr_page_table;
-	for(int i=0;i<frames_count;i++)
-	{
-		free_frame(get_frame_info(ptr_page_directory, current_page, &ptr_page_table));
-		unmap_frame(ptr_page_directory, current_page);
-		current_page += PAGE_SIZE;
-	}
-}
-
 int allocate_and_map_pages(uint32 start_address, uint32 end_address)
 {
     uint32 current_page = start_address;

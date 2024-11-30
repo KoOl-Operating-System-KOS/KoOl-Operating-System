@@ -73,8 +73,8 @@ void fault_handler(struct Trapframe *tf)
 	/******************************************************/
 	// Read processor's CR2 register to find the faulting address
 	uint32 fault_va = rcr2();
-	//	cprintf("\n************Faulted VA = %x************\n", fault_va);
-	//	print_trapframe(tf);
+		//cprintf("\n************Faulted VA = %x************\n", fault_va);
+		//print_trapframe(tf);
 	/******************************************************/
 
 	//If same fault va for 3 times, then panic

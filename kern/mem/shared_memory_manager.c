@@ -69,7 +69,7 @@ inline struct FrameInfo** create_frames_storage(int numOfFrames)
 	//panic("create_frames_storage is not implemented yet");
 	//Your Code is Here...
 
-    struct FrameInfo** arrFramesInfo = (struct FrameInfo**)kmalloc(numOfFrames*sizeof(struct FrameInfo*));
+    struct FrameInfo** arrFramesInfo = (struct FrameInfo**)kmalloc(numOfFrames*sizeof(struct FrameInfo));
 
     if (arrFramesInfo == NULL) {
                cprintf("Memory allocation for frames storage failed.\n");
@@ -97,7 +97,6 @@ struct Share* create_share(int32 ownerID, char* shareName, uint32 size, uint8 is
 	//COMMENT THE FOLLOWING LINE BEFORE START CODING
 	//panic("create_share is not implemented yet");
 	//Your Code is Here...
-	//besmallah
 
 	if(sizeof(shareName)> 64){
 		return NULL;
@@ -110,10 +109,10 @@ struct Share* create_share(int32 ownerID, char* shareName, uint32 size, uint8 is
 	if(isWritable > 1){
 		return NULL;
 	}
+	size=ROUNDUP(size,PAGE_SIZE);
+	int noFrames = size/PAGE_SIZE;
 
-	int noFrames = ROUNDUP(size,PAGE_SIZE)/PAGE_SIZE;
-
-	struct Share* nShare = (struct Share*)kmalloc(sizeof(struct Share*)); //alocation of the shared object;
+	struct Share* nShare = (struct Share*)kmalloc(sizeof(struct Share*)); //allocation of the shared object;
 
 	if (nShare == NULL) {
 		   cprintf("Memory allocation for share failed.\n");
@@ -125,6 +124,8 @@ struct Share* create_share(int32 ownerID, char* shareName, uint32 size, uint8 is
 	nShare->ownerID = ownerID;
 
 	strncpy(nShare->name, shareName, 64);
+
+	nShare->size = size;
 
 	nShare->references = 1;
 
@@ -152,14 +153,20 @@ struct Share* get_share(int32 ownerID, char* name)
 	//panic("get_share is not implemented yet");
 	//Your Code is Here...
 
-	struct Share* share;
+	struct Share* share=(struct Share*)NULL;
 
 	acquire_spinlock(&AllShares.shareslock);
 
 	LIST_FOREACH(share,&AllShares.shares_list){
-		if(share->ownerID == ownerID && strcmp(share->name,name))
+		if(share->ownerID == ownerID && !strcmp(share->name,name))
 		{
-			release_spinlock(&AllShares.shareslock);//realse the lock here
+//			cprintf("LOOP SHARE ID: %d \n\n",share->ID);
+//			cprintf("LOOP SHARE ownerID: %d \n\n",share->ownerID);
+//			cprintf("LOOP SHARE SIZE: %d \n\n",share->size);
+//			cprintf("LOOP SHARE references: %d \n\n",share->references);
+//			cprintf("LOOP SHARE isWritable: %u \n\n",share->isWritable);
+//			cprintf("LOOP SHARE framesStorage: %u \n\n",(uint32)share->framesStorage[0]);
+			release_spinlock(&AllShares.shareslock);
 			return share;
 		}
 	}
@@ -187,12 +194,17 @@ int createSharedObject(int32 ownerID, char* shareName, uint32 size, uint8 isWrit
 	{
 		return E_SHARED_MEM_EXISTS;
 	}
-
-	struct Share* ret = create_share(ownerID,shareName,size,isWritable);
+	size=ROUNDUP(size,PAGE_SIZE);
+	struct Share* ret = (struct Share*)NULL;
+	ret = create_share(ownerID,shareName,size,isWritable);
 
 	if(ret==NULL){
 		return E_NO_SHARE;
 	}
+	cprintf("ret size: %d \n\n",size);
+	cprintf("ret writable: %u \n\n",isWritable);
+
+
 	acquire_spinlock(&AllShares.shareslock);
 
 	//if return not null: add the shares list
@@ -200,8 +212,12 @@ int createSharedObject(int32 ownerID, char* shareName, uint32 size, uint8 isWrit
 
 	release_spinlock(&AllShares.shareslock);
 
+	cprintf("list size: %d \n\n",&AllShares.shares_list.lh_first->size);
+	cprintf("list writable: %u \n\n",&AllShares.shares_list.lh_first->isWritable);
+	cprintf("list size: %d \n\n",(&AllShares.shares_list)->size);
+
 	int noFrames = ROUNDUP(size,PAGE_SIZE)/PAGE_SIZE;
-	uint32 permissions = PERM_PRESENT | isWritable;
+	uint32 permissions = PERM_USER  | PERM_PRESENT | PERM_WRITEABLE;
     uint32 current_page = (uint32)virtual_address;
 	for(int i=0;i<noFrames;i++){
 
@@ -215,6 +231,7 @@ int createSharedObject(int32 ownerID, char* shareName, uint32 size, uint8 isWrit
 		current_page+=PAGE_SIZE;
 
 	}
+
 	//allocate and map the shared object in physical memory at the passed va and then
 	//put each frame as we calculated in the frameslist of the object
 	return ret->ID;
@@ -234,19 +251,16 @@ int getSharedObject(int32 ownerID, char* shareName, void* virtual_address)
 
 	struct Env* myenv = get_cpu_proc(); //The calling environment
 
-	struct Share* shared_object=get_share(ownerID,shareName);
-
-	if(shared_object!=NULL)
+	struct Share* shared_object=(struct Share*)NULL;
+	shared_object = get_share(ownerID,shareName);
+	if(shared_object == NULL)
 	{
-		return E_SHARED_MEM_EXISTS;
+		return E_SHARED_MEM_NOT_EXISTS;
 	}
-
 	int noFrames = ROUNDUP(getSizeOfSharedObject(ownerID,shareName),PAGE_SIZE)/PAGE_SIZE;
-	uint32 permissions = PERM_PRESENT | shared_object->isWritable;
+	uint32 permissions = PERM_USER  | PERM_PRESENT | (uint32)shared_object->isWritable;
 	for(int i=0;i<noFrames;i++){
-
 		map_frame(myenv->env_page_directory, shared_object->framesStorage[i], (uint32)virtual_address, permissions);
-		shared_object->framesStorage[i]->references++;
 	}
 
 	shared_object->references++;
