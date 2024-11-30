@@ -163,9 +163,9 @@ void fault_handler(struct Trapframe *tf)
 					env_exit();
 
 				bool writeable = ptr_page_table[PTX(fault_va)]&PERM_WRITEABLE;
-
 				bool marked = ptr_page_table[PTX(fault_va)] & MARKING_BIT;
 				bool present = ptr_page_table[PTX(fault_va)] & PERM_PRESENT;
+				bool User = ptr_page_table[PTX(fault_va)] & PERM_USER;
 
 				//CHECK THE KERNEL CONDITION
 
@@ -179,6 +179,8 @@ void fault_handler(struct Trapframe *tf)
 					if(!marked)
 						env_exit();
 				}
+				if(!User)
+					env_exit();
 			}
 			/*============================================================================================*/
 		}

@@ -29,10 +29,7 @@ int allocate_and_map_pages(uint32 start_address, uint32 end_address)
     while (current_page < end_address) {
         struct FrameInfo* Frame;
 
-		if (allocate_frame(&Frame) != 0) {
-			free_and_unmap_pages(start_address,ind);
-			return 0;
-		}
+		allocate_frame(&Frame);
 
 		map_frame(ptr_page_directory, Frame, current_page, permissions);
 

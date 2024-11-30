@@ -235,7 +235,7 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 	 {
 		 return NULL;
 	 }
-	 int ret=sys_createSharedObject(sharedVarName,size,isWritable,va); //ret->id??
+	 int ret=sys_createSharedObject(sharedVarName,size,isWritable,va);
 	 if(ret==E_NO_SHARE || ret==E_SHARED_MEM_EXISTS)
 	 {
 		 return NULL;
@@ -298,6 +298,7 @@ void sfree(void* virtual_address)
 	//TODO: [PROJECT'24.MS2 - BONUS#4] [4] SHARED MEMORY [USER SIDE] - sfree()
 	// Write your code here, remove the panic and write your code
 	panic("sfree() is not implemented yet...!!");
+
 }
 
 
