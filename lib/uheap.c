@@ -83,6 +83,29 @@ void* TREE_alloc_FF(uint32 count){
 	return (void*)va;
 }
 
+void* TREE_salloc_FF(uint32 count){
+
+	if(get_value(1) < count) return NULL;
+
+	uint32 page_idx;
+	uint32 cur = TREE_first_fit(count, &page_idx);
+
+	uint32 free_pages = get_free_value(cur);
+
+	uint32 va = (PAGE_ALLOCATOR_START + page_idx * PAGE_SIZE);
+
+	update_node(cur, count, 1);
+
+	for(int i = 1; i < count; i++)
+		set_info(cur + i, 0, 1);
+
+	if(free_pages > count)
+		update_node(cur + count, free_pages - count, 0);
+
+	return (void*)va;
+}
+
+
 bool TREE_free(uint32 page_idx){
 
 	uint32 cur = TREE_get_node(page_idx);
@@ -197,14 +220,27 @@ void free(void* virtual_address)
 //=================================
 void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 {
-	//==============================================================
-	//DON'T CHANGE THIS CODE========================================
-	if (size == 0) return NULL ;
-	//==============================================================
-	//TODO: [PROJECT'24.MS2 - #18] [4] SHARED MEMORY [USER SIDE] - smalloc()
-	// Write your code here, remove the panic and write your code
-	panic("smalloc() is not implemented yet...!!");
-	return NULL;
+	 if (size == 0) return NULL ;
+
+	if(!init){
+		init = 1;
+		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
+	}
+
+	 uint32 pages_count = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
+
+	 void* va =TREE_salloc_FF(pages_count);
+	 //cprintf("HALALOYA %u %u \n\n",(uint32)va,pages_count);
+	 if(va == NULL)
+	 {
+		 return NULL;
+	 }
+	 int ret=sys_createSharedObject(sharedVarName,size,isWritable,va); //ret->id??
+	 if(ret==E_NO_SHARE || ret==E_SHARED_MEM_EXISTS)
+	 {
+		 return NULL;
+	 }
+	 return va;
 }
 
 //========================================
@@ -214,8 +250,31 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 {
 	//TODO: [PROJECT'24.MS2 - #20] [4] SHARED MEMORY [USER SIDE] - sget()
 	// Write your code here, remove the panic and write your code
-	panic("sget() is not implemented yet...!!");
-	return NULL;
+	//panic("sget() is not implemented yet...!!");
+
+	int size =sys_getSizeOfSharedObject(ownerEnvID, sharedVarName);
+	if(size == E_SHARED_MEM_NOT_EXISTS || 0)
+		return NULL;
+
+	if(!init){
+		init = 1;
+		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
+	}
+
+
+	uint32 pages_count = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
+	void* va =TREE_salloc_FF(pages_count);
+
+	 if(va == NULL)
+	 {
+		 return NULL;
+	 }
+	 int ret=sys_getSharedObject(ownerEnvID,sharedVarName,va); //ret->id??
+	 if(ret==E_SHARED_MEM_NOT_EXISTS)
+	 {
+		 return NULL;
+	 }
+	 return va;
 }
 
 

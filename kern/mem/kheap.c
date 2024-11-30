@@ -39,6 +39,8 @@ int allocate_and_map_pages(uint32 start_address, uint32 end_address)
 		uint32 frame_number = to_frame_number(Frame);
 		virtual_address_directory[frame_number] = current_page >> 12;
 
+        map_frame(ptr_page_directory, Frame, current_page, permissions);
+
         current_page += PAGE_SIZE;
         ind++;
     }
