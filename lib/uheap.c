@@ -157,7 +157,6 @@ void* malloc(uint32 size)
 	if(!init){
 		init = 1;
 		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
-		cprintf("PAGES * 2: %u\n\n",myEnv->uheap_pages_count * 2);
 	}
 
 	if(size <= DYN_ALLOC_MAX_BLOCK_SIZE)
