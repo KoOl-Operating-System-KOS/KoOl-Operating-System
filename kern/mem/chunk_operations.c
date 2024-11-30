@@ -215,10 +215,24 @@ void free_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 		get_page_table(e->env_page_directory, addr, &ptr_page_table);
 		ptr_page_table[PTX(addr)] = ptr_page_table[PTX(addr)] & (~MARKING_BIT);
 		pf_remove_env_page(e, addr);
-		env_page_ws_invalidate(e, addr);
+
+		struct FrameInfo *frame = get_frame_info(e->env_page_directory, addr, &ptr_page_table);
+
+		if(frame != 0){
+			struct WorkingSetElement* wse = frame->ws_ptr;
+
+			unmap_frame(e->env_page_directory, wse->virtual_address);
+
+			if (e->page_last_WS_element == wse)
+			{
+				e->page_last_WS_element = LIST_NEXT(wse);
+			}
+			LIST_REMOVE(&(e->page_WS_list), wse);
+
+			kfree(wse);
+		}
 	}
 
-	//TODO: [PROJECT'24.MS2 - BONUS#3] [3] USER HEAP [KERNEL SIDE] - O(1) free_user_mem
 }
 
 //=====================================

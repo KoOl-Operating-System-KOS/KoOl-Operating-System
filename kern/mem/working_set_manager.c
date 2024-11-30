@@ -29,6 +29,11 @@ inline struct WorkingSetElement* env_page_ws_list_create_element(struct Env* e, 
 
     WS_Element->virtual_address=virtual_address;
     pt_set_page_permissions(e->env_page_directory, (uint32)WS_Element, PERM_USER| MARKING_BIT, 0);
+
+    uint32 * ptr_page_table;
+    struct FrameInfo *frame = get_frame_info(e->env_page_directory, virtual_address, &ptr_page_table);
+    frame->ws_ptr = WS_Element;
+
     return WS_Element;
 }
 
