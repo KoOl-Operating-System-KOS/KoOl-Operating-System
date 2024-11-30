@@ -253,7 +253,7 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 	//panic("sget() is not implemented yet...!!");
 
 	int size =sys_getSizeOfSharedObject(ownerEnvID, sharedVarName);
-	if(size == E_SHARED_MEM_NOT_EXISTS)
+	if(size == E_SHARED_MEM_NOT_EXISTS || 0)
 		return NULL;
 
 	if(!init){
