@@ -325,7 +325,6 @@ int freeSharedObject(int32 sharedObjectID, void *startVA)
 	for(int i = 0; i < frames_count; i++)
 	{
 		struct FrameInfo *frame = get_frame_info(myenv->env_page_directory , current_page , &ptr_page_table);
-
 		unmap_frame(myenv->env_page_directory , current_page);
 
 		current_page += PAGE_SIZE;

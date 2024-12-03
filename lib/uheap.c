@@ -8,7 +8,7 @@
 
 uint32 info_tree[1<<19];
 bool init = 0;
-
+uint32 shared_id_directory[1<<19];
 inline uint32 address_to_page(void* virtual_address){
 	return ((uint32)virtual_address - PAGE_ALLOCATOR_START) / PAGE_SIZE;
 }
@@ -180,6 +180,7 @@ void* malloc(uint32 size)
 	if(!init){
 		init = 1;
 		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
+		memset(shared_id_directory,-1,sizeof shared_id_directory);
 	}
 
 	if(size <= DYN_ALLOC_MAX_BLOCK_SIZE)
@@ -207,6 +208,7 @@ void free(void* virtual_address)
 	if(!init){
 		init = 1;
 		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
+		memset(shared_id_directory,-1,sizeof shared_id_directory);
 	}
 
 	if((uint32)virtual_address <= myEnv->uheap_segment_break-(DYN_ALLOC_MIN_BLOCK_SIZE+META_DATA_SIZE/2))
@@ -225,12 +227,13 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 	if(!init){
 		init = 1;
 		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
+		memset(shared_id_directory,-1,sizeof shared_id_directory);
 	}
 
 	 uint32 pages_count = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
 
 	 void* va =TREE_salloc_FF(pages_count);
-	 //cprintf("HALALOYA %u %u \n\n",(uint32)va,pages_count);
+
 	 if(va == NULL)
 	 {
 		 return NULL;
@@ -240,6 +243,8 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 	 {
 		 return NULL;
 	 }
+	 uint32 indx = ((uint32)va - PAGE_ALLOCATOR_START)/PAGE_SIZE;
+	 shared_id_directory[indx] = ret;
 	 return va;
 }
 
@@ -274,6 +279,8 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 	 {
 		 return NULL;
 	 }
+	 uint32 indx = ((uint32)va - PAGE_ALLOCATOR_START)/PAGE_SIZE;
+	 shared_id_directory[indx] = ret;
 	 return va;
 }
 
@@ -295,10 +302,12 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 
 void sfree(void* virtual_address)
 {
-	//TODO: [PROJECT'24.MS2 - BONUS#4] [4] SHARED MEMORY [USER SIDE] - sfree()
-	// Write your code here, remove the panic and write your code
-	panic("sfree() is not implemented yet...!!");
-
+	uint32 indx = ((uint32)virtual_address - PAGE_ALLOCATOR_START)/PAGE_SIZE;
+	if(shared_id_directory[indx] == -1)
+		panic("Invalid sfree address\n");
+	if(sys_freeSharedObject(shared_id_directory[indx],virtual_address) == E_NO_SHARE)
+		panic("No Share found\n");
+	shared_id_directory[indx] = -1;
 }
 
 

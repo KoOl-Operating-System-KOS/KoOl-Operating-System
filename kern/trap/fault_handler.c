@@ -73,8 +73,8 @@ void fault_handler(struct Trapframe *tf)
 	/******************************************************/
 	// Read processor's CR2 register to find the faulting address
 	uint32 fault_va = rcr2();
-		//cprintf("\n************Faulted VA = %x************\n", fault_va);
-		//print_trapframe(tf);
+	//	cprintf("\n************Faulted VA = %x************\n", fault_va);
+	//	print_trapframe(tf);
 	/******************************************************/
 
 	//If same fault va for 3 times, then panic
@@ -156,31 +156,47 @@ void fault_handler(struct Trapframe *tf)
 
 			uint32* ptr_page_table = NULL;
 
-			get_page_table(faulted_env->env_page_directory, fault_va, &ptr_page_table);
+			int x = get_page_table(faulted_env->env_page_directory,fault_va,&ptr_page_table);
 
-			if(!(fault_va < USTACKTOP && fault_va >= USTACKBOTTOM)){
-				if(ptr_page_table == NULL)
+			if(x==TABLE_NOT_EXIST){
+
+				env_exit();
+
+			}
+
+			if(!(fault_va < USTACKTOP && fault_va>=USTACKBOTTOM)){
+
+
+               int perms = pt_get_page_permissions(faulted_env->env_page_directory,fault_va);
+
+               if(perms==-1){
+                    env_exit();
+               }
+
+               int present = perms & PERM_PRESENT;
+               int marked  = perms & MARKING_BIT;
+               int writable = perms & PERM_WRITEABLE;
+               int user = perms & PERM_USER;
+
+			//CHECK THE KERNEL CONDITION
+               if(!marked)
 					env_exit();
 
-				bool writeable = ptr_page_table[PTX(fault_va)]&PERM_WRITEABLE;
-				bool marked = ptr_page_table[PTX(fault_va)] & MARKING_BIT;
-				bool present = ptr_page_table[PTX(fault_va)] & PERM_PRESENT;
-				bool User = ptr_page_table[PTX(fault_va)] & PERM_USER;
+			if(fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX){
 
-				//CHECK THE KERNEL CONDITION
+				if(!marked)
+				env_exit();
 
-				if( fault_va>=KERNEL_BASE)
-					env_exit();
+			}
 
-				if (present && !writeable)
-					env_exit();
 
-				if(fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX){
-					if(!marked)
-						env_exit();
-				}
-				if(!User)
-					env_exit();
+			if (present & !writable)
+				env_exit();
+
+
+			if( fault_va>=USER_LIMIT)
+				env_exit();
+
 			}
 			/*============================================================================================*/
 		}
@@ -248,7 +264,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		struct WorkingSetElement *victimWSElement = NULL;
 		uint32 wsSize = LIST_SIZE(&(faulted_env->page_WS_list));
 #else
-		int iWS = faulted_env->page_last_WS_index;
+		int iWS =faulted_env->page_last_WS_index;
 		uint32 wsSize = env_page_ws_get_size(faulted_env);
 #endif
 
