@@ -243,7 +243,7 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 	 {
 		 return NULL;
 	 }
-	 uint32 indx = ((uint32)va - PAGE_ALLOCATOR_START)/PAGE_SIZE;
+	 uint32 indx = address_to_page(va);
 	 shared_id_directory[indx] = ret;
 	 return va;
 }
@@ -279,7 +279,7 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 	 {
 		 return NULL;
 	 }
-	 uint32 indx = ((uint32)va - PAGE_ALLOCATOR_START)/PAGE_SIZE;
+	 uint32 indx = address_to_page(va);
 	 shared_id_directory[indx] = ret;
 	 return va;
 }
@@ -302,7 +302,8 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 
 void sfree(void* virtual_address)
 {
-	uint32 indx = ((uint32)virtual_address - PAGE_ALLOCATOR_START)/PAGE_SIZE;
+	uint32 indx = address_to_page(virtual_address);
+	//free page from uheap
 	if(shared_id_directory[indx] == -1)
 		panic("Invalid sfree address\n");
 	if(sys_freeSharedObject(shared_id_directory[indx],virtual_address) == E_NO_SHARE)

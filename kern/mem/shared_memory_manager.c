@@ -188,15 +188,6 @@ int createSharedObject(int32 ownerID, char* shareName, uint32 size, uint8 isWrit
 	if(ret==NULL)
 		return E_NO_SHARE;
 
-	if (!holding_spinlock(&AllShares.shareslock))
-		acquire_spinlock(&AllShares.shareslock);
-
-	//if return not null: add the shares list
-	LIST_INSERT_TAIL(&AllShares.shares_list,ret);
-
-	if (holding_spinlock(&AllShares.shareslock))
-		release_spinlock(&AllShares.shareslock);
-
 	int noFrames = ROUNDUP(size,PAGE_SIZE)/PAGE_SIZE;
 
 	uint32 permissions = PERM_USER | PERM_WRITEABLE;
@@ -216,6 +207,14 @@ int createSharedObject(int32 ownerID, char* shareName, uint32 size, uint8 isWrit
 		current_page+=PAGE_SIZE;
 	}
 
+	if (!holding_spinlock(&AllShares.shareslock))
+			acquire_spinlock(&AllShares.shareslock);
+
+		//if return not null: add the shares list
+		LIST_INSERT_TAIL(&AllShares.shares_list,ret);
+
+		if (holding_spinlock(&AllShares.shareslock))
+			release_spinlock(&AllShares.shareslock);
 	//allocate and map the shared object in physical memory at the passed va and then
 	//put each frame as we calculated in the frameslist of the object
 	return ret->ID;
@@ -258,8 +257,13 @@ int getSharedObject(int32 ownerID, char* shareName, void* virtual_address)
 
 		current_page += PAGE_SIZE;
 	}
+	if (!holding_spinlock(&AllShares.shareslock))
+			acquire_spinlock(&AllShares.shareslock);
 
 	shared_object->references++;
+
+	if (holding_spinlock(&AllShares.shareslock))
+			release_spinlock(&AllShares.shareslock);
 
 	return shared_object->ID;
 
@@ -281,11 +285,11 @@ void free_share(struct Share* ptrShare)
 
 	LIST_REMOVE(&AllShares.shares_list, ptrShare);
 
-	if (holding_spinlock(&AllShares.shareslock))
-		release_spinlock(&AllShares.shareslock);
 
 	kfree((void*)ptrShare->framesStorage);
 	kfree((void*)ptrShare);
+	if (holding_spinlock(&AllShares.shareslock))
+		release_spinlock(&AllShares.shareslock);
 }
 //========================
 // [B2] Free Share Object:
@@ -302,8 +306,8 @@ int freeSharedObject(int32 sharedObjectID, void *startVA)
 
 		if(share->ID == sharedObjectID)
 		{
-			if (!holding_spinlock(&AllShares.shareslock))
-				release_spinlock(&AllShares.shareslock);//release the lock here
+			if (holding_spinlock(&AllShares.shareslock))
+					release_spinlock(&AllShares.shareslock);
 			break;
 		}
 	}
@@ -312,7 +316,6 @@ int freeSharedObject(int32 sharedObjectID, void *startVA)
 			release_spinlock(&AllShares.shareslock);
 		return E_NO_SHARE;
 	}
-	share->references--;
 
 	struct Env* myenv = get_cpu_proc();
 
@@ -321,36 +324,41 @@ int freeSharedObject(int32 sharedObjectID, void *startVA)
 	uint32 * ptr_page_table;
 
 	uint32 frames_count = ROUNDUP(share->size , PAGE_SIZE) / PAGE_SIZE;
-
 	for(int i = 0; i < frames_count; i++)
 	{
-		struct FrameInfo *frame = get_frame_info(myenv->env_page_directory , current_page , &ptr_page_table);
+		get_page_table(myenv->env_page_directory , current_page , &ptr_page_table);
 		unmap_frame(myenv->env_page_directory , current_page);
+		bool flag = 1;
+		uint32* table = ptr_page_table;
 
+		for(int i = 0; i < PAGE_SIZE / 4; i++)
+		{
+			if(table[i] & PERM_PRESENT)
+			{
+				flag = 0;
+				break;
+			}
+		}
+		if(flag)
+		{
+			pd_clear_page_dir_entry(myenv->env_page_directory, current_page);
+			kfree((void*)ptr_page_table);
+		}
 		current_page += PAGE_SIZE;
 	}
-	bool flag = 1;
 
-	uint32* table = ptr_page_table;
 
-	for(int i = 0; i < PAGE_SIZE / 4; i++)
-	{
-		if(table[i] & PERM_PRESENT)
-		{
-			flag = 0;
-			break;
-		}
-	}
-	if(flag)
-	{
-		kfree((void*)ptr_page_table);
-	}
 
+	if (!holding_spinlock(&AllShares.shareslock))
+			acquire_spinlock(&AllShares.shareslock);
+
+	share->references--;
 	if(share->references==0)
 		free_share(share);
+//	tlbflush();
 
-	tlb_invalidate(myenv->env_page_directory,startVA);
-
+	if (holding_spinlock(&AllShares.shareslock))
+			release_spinlock(&AllShares.shareslock);
 	return 0;
 
 }
