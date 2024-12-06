@@ -355,7 +355,7 @@ int freeSharedObject(int32 sharedObjectID, void *startVA)
 	share->references--;
 	if(share->references==0)
 		free_share(share);
-//	tlbflush();
+	tlbflush();
 
 	if (holding_spinlock(&AllShares.shareslock))
 			release_spinlock(&AllShares.shareslock);

@@ -303,7 +303,6 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 void sfree(void* virtual_address)
 {
 	uint32 indx = address_to_page(virtual_address);
-	//free page from uheap
 	if(shared_id_directory[indx] == -1)
 		panic("Invalid sfree address\n");
 	if(sys_freeSharedObject(shared_id_directory[indx],virtual_address) == E_NO_SHARE)
