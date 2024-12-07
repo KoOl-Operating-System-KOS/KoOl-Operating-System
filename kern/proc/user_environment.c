@@ -876,28 +876,21 @@ void* create_user_kern_stack(uint32* ptr_user_page_directory)
 
     void* checker = (void*)kmalloc(KERNEL_STACK_SIZE);
 
-    if(checker == NULL){
-
+    if(checker == NULL)
         panic("NOT ENOUGH SPACE, SADLY");
-    }
     else{
-
         uint32* return_page = NULL;
 
-        get_page_table(ptr_user_page_directory,(uint32)checker,&return_page);
+        get_page_table(ptr_user_page_directory, (uint32)checker, &return_page);
 
         if(return_page!=NULL){
 
             return_page[PTX(checker)] = return_page[PTX(checker)] & (~PERM_PRESENT);
 
             return checker;
-
-        }else{
-
-            panic("NO PAGE FOUND!");
         }
-
-
+        else
+            panic("NO PAGE FOUND!");
     }
 
 #else
@@ -946,6 +939,11 @@ void initialize_uheap_dynamic_allocator(struct Env* e, uint32 daStart, uint32 da
 	e->uheap_segment_break = daStart;
 	e->uheap_hard_limit = daLimit;
 	e->uheap_pages_count = (1 << (31 - __builtin_clz(pages_count))) * (1 + (((pages_count) & (pages_count-1)) > 0));
+	e->info_tree = kmalloc(2 * e->uheap_pages_count * sizeof(uint32));
+	e->shared_id_directory = kmalloc((1<<19) * sizeof(uint32));
+
+	memset(e->info_tree, 0, 2 * e->uheap_pages_count * sizeof(uint32));
+	memset(e->shared_id_directory, -1, (1<<19) * sizeof(uint32));
 
 	initialize_dynamic_allocator(daStart, 0);
 

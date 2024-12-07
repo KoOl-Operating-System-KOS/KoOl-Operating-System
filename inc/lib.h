@@ -80,6 +80,9 @@ uint32 	sys_isUHeapPlacementStrategyNEXTFIT();
 uint32 	sys_isUHeapPlacementStrategyWORSTFIT();
 void 	sys_set_uheap_strategy(uint32 heapStrategy);
 
+uint32  sys_get_value(uint32 idx, uint32* array);
+uint32  sys_set_value(uint32 idx, uint32 value, uint32* array);
+
 //Page File
 int 	sys_pf_calculate_allocated_pages(void);
 

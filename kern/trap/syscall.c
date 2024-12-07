@@ -299,6 +299,15 @@ int sys_pf_calculate_allocated_pages(void)
 /*******************************/
 /* USER HEAP SYSTEM CALLS */
 /*******************************/
+
+uint32 sys_get_value(uint32 idx, uint32* array){
+	return array[idx];
+}
+
+uint32 sys_set_value(uint32 idx, uint32 value, uint32* array){
+	return array[idx] = value;
+}
+
 void sys_free_user_mem(uint32 virtual_address, uint32 size)
 {
 	if(isBufferingEnabled())
@@ -686,6 +695,14 @@ uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uin
 	case SYS_utilities:
 		sys_utilities((char*)a1, (int)a2);
 		return 0;
+
+	case SYS_get_value:
+		return sys_get_value(a1, (uint32*)a2);
+		break;
+
+	case SYS_set_value:
+		return sys_set_value(a1, a2, (uint32*)a3);
+		break;
 
 	case NSYSCALLS:
 		return 	-E_INVAL;

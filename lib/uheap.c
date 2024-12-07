@@ -6,27 +6,26 @@
 #define PAGES_COUNT myEnv->uheap_pages_count
 #define max(a, b) (a > b ? a : b)
 
-uint32 info_tree[1<<19];
 bool init = 0;
-uint32 shared_id_directory[1<<19];
+
 inline uint32 address_to_page(void* virtual_address){
 	return ((uint32)virtual_address - PAGE_ALLOCATOR_START) / PAGE_SIZE;
 }
 
 inline uint32 set_info(uint32 cur, uint32 val, bool isAllocated){
-	return info_tree[cur] = val | (isAllocated ? ALLOC_FLAG : 0);
+	return sys_set_value(cur, val | (isAllocated ? ALLOC_FLAG : 0), myEnv->info_tree);
 }
 
 inline bool is_allocated(uint32 cur){
-	return (info_tree[cur] & ALLOC_FLAG);
+	return (sys_get_value(cur, myEnv->info_tree) & ALLOC_FLAG);
 }
 
 inline uint32 get_free_value(uint32 cur){
-	return (is_allocated(cur) ? 0 : info_tree[cur]);
+	return (is_allocated(cur) ? 0 : sys_get_value(cur, myEnv->info_tree));
 }
 
 inline uint32 get_value(uint32 cur){
-	return info_tree[cur] & VAL_MASK;
+	return sys_get_value(cur, myEnv->info_tree) & VAL_MASK;
 }
 
 inline void update_node(uint32 cur, uint32 val, bool isAllocated){
@@ -105,7 +104,6 @@ void* TREE_salloc_FF(uint32 count){
 	return (void*)va;
 }
 
-
 bool TREE_free(uint32 page_idx){
 
 	uint32 cur = TREE_get_node(page_idx);
@@ -180,7 +178,6 @@ void* malloc(uint32 size)
 	if(!init){
 		init = 1;
 		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
-		memset(shared_id_directory,-1,sizeof shared_id_directory);
 	}
 
 	if(size <= DYN_ALLOC_MAX_BLOCK_SIZE)
@@ -208,7 +205,6 @@ void free(void* virtual_address)
 	if(!init){
 		init = 1;
 		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
-		memset(shared_id_directory,-1,sizeof shared_id_directory);
 	}
 
 	if((uint32)virtual_address <= myEnv->uheap_segment_break-(DYN_ALLOC_MIN_BLOCK_SIZE+META_DATA_SIZE/2))
@@ -227,7 +223,6 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 	if(!init){
 		init = 1;
 		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
-		memset(shared_id_directory,-1,sizeof shared_id_directory);
 	}
 
 	 uint32 pages_count = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
@@ -244,7 +239,8 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 		 return NULL;
 	 }
 	 uint32 indx = address_to_page(va);
-	 shared_id_directory[indx] = ret;
+	 sys_set_value(indx, ret, myEnv->shared_id_directory);
+
 	 return va;
 }
 
@@ -280,7 +276,7 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 		 return NULL;
 	 }
 	 uint32 indx = address_to_page(va);
-	 shared_id_directory[indx] = ret;
+	 sys_set_value(indx, ret, myEnv->shared_id_directory);
 	 return va;
 }
 
@@ -303,11 +299,12 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 void sfree(void* virtual_address)
 {
 	uint32 indx = address_to_page(virtual_address);
-	if(shared_id_directory[indx] == -1)
+	uint32 value = sys_get_value(indx, myEnv->shared_id_directory);
+	if(value == -1)
 		panic("Invalid sfree address\n");
-	if(sys_freeSharedObject(shared_id_directory[indx],virtual_address) == E_NO_SHARE)
+	if(sys_freeSharedObject(value, virtual_address) == E_NO_SHARE)
 		panic("No Share found\n");
-	shared_id_directory[indx] = -1;
+	 sys_set_value(indx, -1, myEnv->shared_id_directory);
 }
 
 

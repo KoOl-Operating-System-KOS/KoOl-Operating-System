@@ -320,3 +320,11 @@ void sys_allocate_user_mem(uint32 virtual_address, uint32 size)
 	syscall(SYS_allocate_user_mem, virtual_address, size, 0, 0, 0);
 }
 
+uint32 sys_get_value(uint32 idx, uint32* array){
+	return syscall(SYS_get_value, idx, (uint32)array, 0, 0, 0);
+}
+
+uint32 sys_set_value(uint32 idx, uint32 value, uint32* array){
+	return syscall(SYS_set_value, idx, value, (uint32)array, 0, 0);
+}
+

@@ -53,6 +53,8 @@ enum
     SYS_free_user_mem,
     SYS_allocate_user_mem,
 	//=====================================================================
+	SYS_get_value,
+	SYS_set_value,
 	NSYSCALLS
 };
 
