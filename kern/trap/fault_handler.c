@@ -154,49 +154,31 @@ void fault_handler(struct Trapframe *tf)
 			//(e.g. pointing to unmarked user heap page, kernel or wrong access rights),
 			//your code is here
 
-			uint32* ptr_page_table = NULL;
+			int perms = pt_get_page_permissions(faulted_env->env_page_directory, fault_va);
 
-			int x = get_page_table(faulted_env->env_page_directory, fault_va, &ptr_page_table);
-
-			if(x == TABLE_NOT_EXIST){
-				cprintf("Table does not exist\n");
+			if(perms == -1){
+				cprintf("va=%x not exist and has no page table\n", fault_va);
 				env_exit();
 			}
 
-			if(!(fault_va >= USTACKBOTTOM && fault_va < USTACKTOP)){
+			uint32 present = perms & PERM_PRESENT;
+			uint32 marked  = perms & MARKING_BIT;
+			uint32 writable = perms & PERM_WRITEABLE;
+			uint32 user = perms & PERM_USER;
 
-				if(fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX){
+			if(fault_va >= USER_LIMIT){
+				cprintf("va=%x is out of user heap bounds\n", fault_va);
+				env_exit();
+			}
 
-					int perms = pt_get_page_permissions(faulted_env->env_page_directory, fault_va);
+			if(!marked && fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX){
+				cprintf("Accessing an unmarked page in userheap\n");
+				env_exit();
+			}
 
-					if(perms == -1){
-						cprintf("va=%x not exist and has no page table\n", fault_va);
-						env_exit();
-					}
-
-				    int present = perms & PERM_PRESENT;
-				    int marked  = perms & MARKING_BIT;
-				    int writable = perms & PERM_WRITEABLE;
-				    int user = perms & PERM_USER;
-
-					if(!marked){
-						cprintf("Accessing an unmarked page in userheap\n");
-						env_exit();
-					}
-					if (present & !writable){
-						cprintf("Tring to write in a read-only page\n");
-						env_exit();
-					}
-
-					if(fault_va >= USER_LIMIT){
-						cprintf("va=%x is out of user heap bounds\n", fault_va);
-						env_exit();
-					}
-				}
-				else{
-					cprintf("Address not in user stack or user Heap\n");
-					env_exit();
-				}
+			if (present & !writable){
+				cprintf("Tring to write in a read-only page\n");
+				env_exit();
 			}
 
 			/*============================================================================================*/
@@ -282,8 +264,17 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		//redesign this func
 		//normal allocation and mapping
 
-		struct FrameInfo *frame = NULL;
+		int ret = pf_read_env_page(faulted_env, (void*)fault_va);
 
+		if(ret == E_PAGE_NOT_EXIST_IN_PF){
+			if (!((fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) ||
+				(fault_va >= USTACKBOTTOM && fault_va < USTACKTOP))){
+				cprintf("Accessing an address outside user heap and stack\n");
+				env_exit();
+			}
+		}
+
+		struct FrameInfo *frame;
 		int allocation = allocate_frame(&frame);
 
 		if(frame == NULL || allocation != 0){
@@ -292,18 +283,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 
         map_frame(faulted_env->env_page_directory, frame, fault_va, PERM_WRITEABLE | PERM_USER);
 
-		int ret = pf_read_env_page(faulted_env,(void*)fault_va);
-
-
-		if(ret == E_PAGE_NOT_EXIST_IN_PF){
-			if (fault_va >= KERNEL_HEAP_START && fault_va < KERNEL_HEAP_MAX){
-				cprintf("Tring to access a page that doesn;t exist in kheap\n");
-				env_exit();
-			}
-		}
-
         struct WorkingSetElement* WsElement = env_page_ws_list_create_element(faulted_env, fault_va);
-
         LIST_INSERT_TAIL(&(faulted_env->page_WS_list), WsElement);
 
         if (LIST_SIZE(&(faulted_env->page_WS_list)) == faulted_env->page_WS_max_size)

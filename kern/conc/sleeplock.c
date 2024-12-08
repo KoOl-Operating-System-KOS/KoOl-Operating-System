@@ -23,6 +23,8 @@ void init_sleeplock(struct sleeplock *lk, char *name)
 int holding_sleeplock(struct sleeplock *lk)
 {
 	int r;
+	if(get_cpu_proc() == NULL) // assuming that NULL envs wouldn't concurrently run
+		return (lk->pid == -1);
 	acquire_spinlock(&(lk->lk));
 	r = lk->locked && (lk->pid == get_cpu_proc()->env_id);
 	release_spinlock(&(lk->lk));
@@ -36,19 +38,25 @@ void acquire_sleeplock(struct sleeplock *lk)
 	//COMMENT THE FOLLOWING LINE BEFORE START CODING
 	//panic("acquire_sleeplock is not implemented yet");
 	//Your Code is Here...
-	if(holding_sleeplock(lk))
-	    panic("acquire_sleeplock: lock \"%s\" is already held by the same CPU.", lk->name);
 
-	acquire_spinlock(&lk->lk);
+	//if(holding_sleeplock(lk))
+	//    panic("acquire_sleeplock: lock \"%s\" is already held by the same CPU.", lk->name);
 
-	while(lk->locked == 1){
+	if(!holding_spinlock(&lk->lk))
+		acquire_spinlock(&lk->lk);
 
+	while(lk->locked == 1)
 		sleep(&lk->chan, &lk->lk);
-	}
 
 	lk->locked = 1;
 
-	release_spinlock(&lk->lk);
+	if(get_cpu_proc() == NULL) // assuming that NULL envs wouldn't concurrently run
+		lk->pid = -1;
+	else
+		lk->pid = get_cpu_proc()->env_id;
+
+	if(holding_spinlock(&lk->lk))
+		release_spinlock(&lk->lk);
 }
 
 void release_sleeplock(struct sleeplock *lk)
@@ -58,17 +66,18 @@ void release_sleeplock(struct sleeplock *lk)
 	//panic("release_sleeplock is not implemented yet");
 	//Your Code is Here...
 
-	acquire_spinlock(&lk->lk);
+	if(!holding_spinlock(&lk->lk))
+		acquire_spinlock(&lk->lk);
 
 	if(queue_size(&lk->chan.queue) != 0){
-
 		wakeup_all(&lk->chan);
-
 	}
 
-	lk->locked =0;
-    release_spinlock(&lk->lk);
+	lk->locked = 0;
+	lk->pid = 0;
 
+	if(holding_spinlock(&lk->lk))
+		release_spinlock(&lk->lk);
 }
 
 

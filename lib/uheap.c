@@ -6,6 +6,9 @@
 #define PAGES_COUNT myEnv->uheap_pages_count
 #define max(a, b) (a > b ? a : b)
 
+uint32 info_tree[2 * sizeof(uint32) * (1 << (31 - __builtin_clz(NUM_OF_UHEAP_PAGES))) * (1 + (((NUM_OF_UHEAP_PAGES) & (NUM_OF_UHEAP_PAGES-1)) > 0))];
+uint32 shared_id_directory[1<<19];
+
 bool init = 0;
 
 inline uint32 address_to_page(void* virtual_address){
@@ -13,19 +16,19 @@ inline uint32 address_to_page(void* virtual_address){
 }
 
 inline uint32 set_info(uint32 cur, uint32 val, bool isAllocated){
-	return sys_set_value(cur, val | (isAllocated ? ALLOC_FLAG : 0), myEnv->info_tree);
+	return info_tree[cur] = val | (isAllocated ? ALLOC_FLAG : 0);
 }
 
 inline bool is_allocated(uint32 cur){
-	return (sys_get_value(cur, myEnv->info_tree) & ALLOC_FLAG);
+	return ((info_tree[cur] & ALLOC_FLAG) > 0);
 }
 
 inline uint32 get_free_value(uint32 cur){
-	return (is_allocated(cur) ? 0 : sys_get_value(cur, myEnv->info_tree));
+	return (is_allocated(cur) ? 0 : info_tree[cur]);
 }
 
 inline uint32 get_value(uint32 cur){
-	return sys_get_value(cur, myEnv->info_tree) & VAL_MASK;
+	return info_tree[cur] & VAL_MASK;
 }
 
 inline void update_node(uint32 cur, uint32 val, bool isAllocated){
@@ -178,6 +181,7 @@ void* malloc(uint32 size)
 	if(!init){
 		init = 1;
 		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
+		memset(shared_id_directory, -1, sizeof shared_id_directory);
 	}
 
 	if(size <= DYN_ALLOC_MAX_BLOCK_SIZE)
@@ -205,6 +209,7 @@ void free(void* virtual_address)
 	if(!init){
 		init = 1;
 		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
+		memset(shared_id_directory, -1, sizeof shared_id_directory);
 	}
 
 	if((uint32)virtual_address <= myEnv->uheap_segment_break-(DYN_ALLOC_MIN_BLOCK_SIZE+META_DATA_SIZE/2))
@@ -223,23 +228,26 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 	if(!init){
 		init = 1;
 		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
+		memset(shared_id_directory, -1, sizeof shared_id_directory);
 	}
 
 	 uint32 pages_count = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
 
-	 void* va =TREE_salloc_FF(pages_count);
+	 void* va = TREE_salloc_FF(pages_count);
 
 	 if(va == NULL)
 	 {
 		 return NULL;
 	 }
-	 int ret=sys_createSharedObject(sharedVarName,size,isWritable,va);
-	 if(ret==E_NO_SHARE || ret==E_SHARED_MEM_EXISTS)
+
+	 int ret = sys_createSharedObject(sharedVarName, size, isWritable, va);
+	 if(ret == E_NO_SHARE || ret == E_SHARED_MEM_EXISTS)
 	 {
 		 return NULL;
 	 }
+
 	 uint32 indx = address_to_page(va);
-	 sys_set_value(indx, ret, myEnv->shared_id_directory);
+	 shared_id_directory[indx] = ret;
 
 	 return va;
 }
@@ -253,30 +261,31 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 	// Write your code here, remove the panic and write your code
 	//panic("sget() is not implemented yet...!!");
 
-	int size =sys_getSizeOfSharedObject(ownerEnvID, sharedVarName);
+	int size = sys_getSizeOfSharedObject(ownerEnvID, sharedVarName);
 	if(size == E_SHARED_MEM_NOT_EXISTS || 0)
 		return NULL;
 
 	if(!init){
 		init = 1;
 		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
+		memset(shared_id_directory, -1, sizeof shared_id_directory);
 	}
 
 
 	uint32 pages_count = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
-	void* va =TREE_salloc_FF(pages_count);
+	void* va = TREE_salloc_FF(pages_count);
 
 	 if(va == NULL)
 	 {
 		 return NULL;
 	 }
-	 int ret=sys_getSharedObject(ownerEnvID,sharedVarName,va); //ret->id??
-	 if(ret==E_SHARED_MEM_NOT_EXISTS)
+	 int ret = sys_getSharedObject(ownerEnvID, sharedVarName, va); //ret->id??
+	 if(ret == E_SHARED_MEM_NOT_EXISTS)
 	 {
 		 return NULL;
 	 }
 	 uint32 indx = address_to_page(va);
-	 sys_set_value(indx, ret, myEnv->shared_id_directory);
+	 shared_id_directory[indx] = ret;
 	 return va;
 }
 
@@ -299,12 +308,12 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 void sfree(void* virtual_address)
 {
 	uint32 indx = address_to_page(virtual_address);
-	uint32 value = sys_get_value(indx, myEnv->shared_id_directory);
+	uint32 value = shared_id_directory[indx];
 	if(value == -1)
 		panic("Invalid sfree address\n");
 	if(sys_freeSharedObject(value, virtual_address) == E_NO_SHARE)
 		panic("No Share found\n");
-	 sys_set_value(indx, -1, myEnv->shared_id_directory);
+	 shared_id_directory[indx] = -1;
 }
 
 

@@ -8,6 +8,9 @@
 #include <inc/types.h>
 #include <inc/queue.h>
 
+#include <inc/stdio.h>
+#include <kern/conc/sleeplock.h>
+
 
 /*2017*/
 uint32 _KHeapPlacementStrategy;
@@ -58,6 +61,9 @@ uint32 Hard_Limit;
 uint32 page_allocator_start;
 uint32 PAGES_COUNT;
 uint32* info_tree;
+struct sleeplock kernel_lock;
+uint32 acquire_count;
+
 void free_and_unmap_pages(uint32 start_address, uint32 frame_count);
 int allocate_and_map_pages(uint32 start_address, uint32 end_address);
 inline bool is_valid_kheap_address(uint32 virtual_address);
@@ -73,5 +79,7 @@ uint32 TREE_first_fit(uint32 count, uint32* page_idx);
 void* TREE_alloc_FF(uint32 count);
 bool TREE_free(uint32 page_idx);
 void* TREE_realloc(uint32 page_idx, uint32 new_count);
+inline void acquire_kernel_lock();
+inline void release_kernel_lock();
 
 #endif // FOS_KERN_KHEAP_H_

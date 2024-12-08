@@ -152,6 +152,7 @@ bool TREE_free(uint32 page_idx){
 
 	free_and_unmap_pages(va, count);
 
+
 	for(int i = 0; i < count; i++)
 		set_info(cur + i, 0, 0);
 
@@ -234,6 +235,20 @@ void* TREE_realloc(uint32 page_idx, uint32 new_size){
 //Return:
 //    On success: 0
 //    Otherwise (if no memory OR initial size exceed the given limit): E_NO_MEM
+
+inline void acquire_kernel_lock(){
+	if(!holding_sleeplock(&kernel_lock))
+		acquire_sleeplock(&kernel_lock);
+	acquire_count++;
+}
+
+inline void release_kernel_lock(){
+	acquire_count--;
+	assert(acquire_count >= 0);
+	if(acquire_count == 0 && holding_sleeplock(&kernel_lock))
+		release_sleeplock(&kernel_lock);
+}
+
 int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate, uint32 daLimit)
 {
 	initSizeToAllocate = ROUNDUP(initSizeToAllocate, PAGE_SIZE);
@@ -246,6 +261,8 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
 
     if(!is_valid_blockAlloc_address(daLimit))
        	panic("Invalid daLimit address");
+
+    init_sleeplock(&kernel_lock, "Kernel Lock");
 
     PAGES_COUNT = KHEAP_PAGES_COUNT;
 
@@ -262,6 +279,8 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
 
     initialize_dynamic_allocator(daStart, initSizeToAllocate);
 
+    acquire_kernel_lock();
+
     info_tree = (void*)(Hard_Limit + PAGE_SIZE);
     uint32 DS_Size = ROUNDUP(PAGES_COUNT * 2 * sizeof(uint32), PAGE_SIZE);
 
@@ -270,6 +289,8 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
 
     memset(info_tree, 0, DS_Size);
     update_node(TREE_get_node(0), (KERNEL_HEAP_MAX - page_allocator_start) / PAGE_SIZE, 0);
+
+    release_kernel_lock();
 
     return 0;
 }
@@ -290,6 +311,7 @@ void* sbrk(int numOfPages)
 	uint32 old_segment_break = segment_break;
 	if(numOfPages== 0)
 		return (void*)segment_break;
+
 	if(segment_break + added_size > Hard_Limit)
 		return (void*)-1;
 
@@ -309,49 +331,85 @@ void* sbrk(int numOfPages)
 
 void* kmalloc(unsigned int size)
 {
-	if(size <= DYN_ALLOC_MAX_BLOCK_SIZE)
-		return alloc_block_FF(size);
+	acquire_kernel_lock();
+
+	if(size <= DYN_ALLOC_MAX_BLOCK_SIZE){
+		void* va = alloc_block_FF(size);
+		release_kernel_lock();
+		return va;
+	}
 
 	uint32 pages_count = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
 
-	if(isKHeapPlacementStrategyFIRSTFIT())
-		return TREE_alloc_FF(pages_count);
+	if(isKHeapPlacementStrategyFIRSTFIT()){
+		void* va = TREE_alloc_FF(pages_count);
+		release_kernel_lock();
+		return va;
+	}
 
+	release_kernel_lock();
 	return NULL;
 }
 
 void kfree(void* virtual_address)
 {
-	if((uint32)virtual_address <= segment_break-(DYN_ALLOC_MIN_BLOCK_SIZE+META_DATA_SIZE/2))
-		free_block(virtual_address);
-	else if(!is_valid_kheap_address((uint32)virtual_address))
-		panic("Invalid address given\n");
-	else if(!TREE_free(address_to_page(virtual_address)))
-		panic("Address given is not the start of the allocated space\n");
+	acquire_kernel_lock();
 
+	if((uint32)virtual_address <= segment_break-(DYN_ALLOC_MIN_BLOCK_SIZE+META_DATA_SIZE/2)){
+		free_block(virtual_address);
+		release_kernel_lock();
+		return;
+	}
+
+	if(!is_valid_kheap_address((uint32)virtual_address)){
+		release_kernel_lock();
+		panic("Invalid address given\n");
+		return;
+	}
+
+	if(!TREE_free(address_to_page(virtual_address))){
+		release_kernel_lock();
+		panic("Address given is not the start of the allocated space\n");
+		return;
+	}
+
+	release_kernel_lock();
 }
 
 unsigned int kheap_physical_address(unsigned int virtual_address)
 {
+	acquire_kernel_lock();
+
 	uint32* pageTable = NULL;
 	get_page_table(ptr_page_directory, virtual_address, &pageTable);
+
 	if(pageTable != NULL){
 		uint32 offset = PGOFF(virtual_address);
 		uint32 frame = (pageTable[PTX(virtual_address)]);
 		uint32 physical_addr = (frame & 0xFFFFF000) | offset;
-		if(!(frame&(~PERM_PRESENT)))return 0;
-		return (physical_addr);
+
+		release_kernel_lock();
+
+		if(!(frame & (~PERM_PRESENT))) return 0;
+		return physical_addr;
 	}
+
+	release_kernel_lock();
 	return 0;
 }
 
 unsigned int kheap_virtual_address(unsigned int physical_address)
 {
+	acquire_kernel_lock();
+
 	uint32 frame = (physical_address >> 12);
+	uint32 address = 0;
 
 	if(virtual_address_directory[frame] != -1)
-		return (virtual_address_directory[frame]<<12)|(physical_address & 0x00000FFF);
-	return 0;
+		address = (virtual_address_directory[frame] << 12)|(physical_address & 0x00000FFF);
+
+	release_kernel_lock();
+	return address;
 }
 //=================================================================================//
 //============================== BONUS FUNCTION ===================================//
@@ -368,25 +426,44 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 
 void *krealloc(void *virtual_address, uint32 new_size)
 {
-	if(virtual_address == NULL) // allocate when va = NULL
-		return kmalloc(new_size);
+	acquire_kernel_lock();
 
-	if((uint32)virtual_address <= segment_break-(DYN_ALLOC_MIN_BLOCK_SIZE + META_DATA_SIZE / 2) && new_size <= DYN_ALLOC_MAX_BLOCK_SIZE) // handled in block allocator
-		return realloc_block_FF(virtual_address, new_size);
+	if(virtual_address == NULL){ // allocate when va = NULL
+		void* va = kmalloc(new_size);
+		release_kernel_lock();
+		return va;
+	}
+
+	if((uint32)virtual_address <= segment_break-(DYN_ALLOC_MIN_BLOCK_SIZE + META_DATA_SIZE / 2) && new_size <= DYN_ALLOC_MAX_BLOCK_SIZE){ // handled in block allocator
+		void* va = realloc_block_FF(virtual_address, new_size);
+		release_kernel_lock();
+		return va;
+	}
 
 	if(new_size == 0){ // free when new_size = 0
 		kfree(virtual_address);
+		release_kernel_lock();
 		return NULL;
 	}
 
-	if((uint32)virtual_address <= Hard_Limit) // relocate from block allocator -> page allocator
-		return relocate(virtual_address, get_block_size(virtual_address) - META_DATA_SIZE, new_size);
+	if((uint32)virtual_address <= Hard_Limit){ // relocate from block allocator -> page allocator
+		void* va = relocate(virtual_address, get_block_size(virtual_address) - META_DATA_SIZE, new_size);
+		release_kernel_lock();
+		return va;
+	}
 
-	if(!is_valid_kheap_address((uint32)virtual_address)) // check if address is a valid page start
+	if(!is_valid_kheap_address((uint32)virtual_address)){ // check if address is a valid page start
+		release_kernel_lock();
 		return NULL;
+	}
 
-	if(new_size <= DYN_ALLOC_MAX_BLOCK_SIZE) // relocate from page allocator -> block allocator
-		return relocate(virtual_address, new_size, new_size);
+	if(new_size <= DYN_ALLOC_MAX_BLOCK_SIZE){ // relocate from page allocator -> block allocator
+		void* va = relocate(virtual_address, new_size, new_size);
+		release_kernel_lock();
+		return va;
+	}
 
-	return TREE_realloc(address_to_page(virtual_address), new_size);
+	void* va = TREE_realloc(address_to_page(virtual_address), new_size);
+	release_kernel_lock();
+	return va;
 }
