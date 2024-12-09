@@ -12,7 +12,7 @@
 #include <kern/disk/pagefile_manager.h>
 #include <kern/mem/memory_manager.h>
 
-
+#define min(a, b) (a < b ? a : b)
 
 //2014 Test Free(): Set it to bypass the PAGE FAULT on an instruction with this length and continue executing the next one
 // 0 means don't bypass the PAGE FAULT
@@ -273,11 +273,6 @@ void replacePage(struct Env* faulted_env, uint32 fault_va){
     faulted_env->page_last_WS_element->virtual_address = fault_va;
     faulted_env->page_last_WS_element->sweeps_counter = 0;
     frame_info->ws_ptr = faulted_env->page_last_WS_element;
-
-    if(faulted_env->page_last_WS_element == LIST_LAST(&(faulted_env->page_WS_list)))
-		faulted_env->page_last_WS_element = LIST_FIRST(&(faulted_env->page_WS_list));
-    else
-    	faulted_env->page_last_WS_element = faulted_env->page_last_WS_element->prev_next_info.le_next;
 }
 
 
@@ -341,34 +336,48 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 
 		bool replaced = 0;
 		uint32* env_page_directory = faulted_env->env_page_directory;
+		struct WorkingSetElement* new_last_WS_element = NULL;
+		uint32 min_remaining = (uint32)-1; //uint32 MAX
+		uint32 increment = 1;
 
-		while(!replaced){
+		//O(W) Implementation (W is the WorkingSet size)
+		for(int cycles = 0; cycles < 2 && !replaced; cycles++){
+			for(int steps = 0; steps < faulted_env->page_WS_max_size; steps++){
 
-			if(faulted_env->page_last_WS_element == NULL)
-				faulted_env->page_last_WS_element = LIST_FIRST(&(faulted_env->page_WS_list));
-
-			while(faulted_env->page_last_WS_element != NULL){
+				if(faulted_env->page_last_WS_element == NULL)
+					faulted_env->page_last_WS_element = LIST_FIRST(&(faulted_env->page_WS_list));
 
 				uint32 perms = pt_get_page_permissions(env_page_directory, faulted_env->page_last_WS_element->virtual_address);
 				uint32 isModified = ((perms & PERM_MODIFIED) == PERM_MODIFIED);
 				uint32 isUsed = ((perms & PERM_USED) == PERM_USED);
 
-				if(isUsed){
+				if(isUsed && !replaced){
 					faulted_env->page_last_WS_element->sweeps_counter = 0;
 					pt_set_page_permissions(env_page_directory, faulted_env->page_last_WS_element->virtual_address, 0, PERM_USED);
 				}
-				else faulted_env->page_last_WS_element->sweeps_counter++;
+				else faulted_env->page_last_WS_element->sweeps_counter += increment;
 
-				if((page_WS_max_sweeps >= 0 && faulted_env->page_last_WS_element->sweeps_counter >= page_WS_max_sweeps) ||
-				   (faulted_env->page_last_WS_element->sweeps_counter >= -page_WS_max_sweeps + isModified)){
-						replacePage(faulted_env, fault_va);
-						replaced = 1;
-						break;
+				uint32 max_sweeps = (page_WS_max_sweeps >= 0 ? page_WS_max_sweeps : -page_WS_max_sweeps + isModified);
+
+				min_remaining = min(min_remaining, max_sweeps - faulted_env->page_last_WS_element->sweeps_counter);
+
+				if(faulted_env->page_last_WS_element->sweeps_counter >= max_sweeps){
+					replacePage(faulted_env, fault_va);
+					replaced = 1;
+					new_last_WS_element = faulted_env->page_last_WS_element->prev_next_info.le_next;
+					if(page_WS_max_sweeps == 0) break;
+					increment--;
 				}
-
 				faulted_env->page_last_WS_element = faulted_env->page_last_WS_element->prev_next_info.le_next;
 			}
+
+			increment = min_remaining;
 		}
+
+		if(new_last_WS_element == NULL)
+			new_last_WS_element = LIST_FIRST(&(faulted_env->page_WS_list));
+
+		faulted_env->page_last_WS_element = new_last_WS_element;
 	}
 
 }
