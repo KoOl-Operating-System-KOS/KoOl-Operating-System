@@ -241,6 +241,46 @@ void table_fault_handler(struct Env * curenv, uint32 fault_va)
 //=========================
 // [3] PAGE FAULT HANDLER:
 //=========================
+
+void replacePage(struct Env* faulted_env, uint32 fault_va){
+
+	uint32 old_va = faulted_env->page_last_WS_element->virtual_address;
+	uint32* env_page_directory = faulted_env->env_page_directory;
+	uint32* ptr_page_table;
+
+	struct FrameInfo *frame_info = get_frame_info(env_page_directory, old_va, &ptr_page_table);
+	uint32 perms = pt_get_page_permissions(env_page_directory, old_va);
+
+	if((perms & PERM_MODIFIED) == PERM_MODIFIED){
+		 pf_update_env_page(faulted_env, old_va, frame_info);
+	}
+
+	unmap_frame(env_page_directory, old_va);
+
+	allocate_frame(&frame_info);
+    map_frame(faulted_env->env_page_directory, frame_info, fault_va, PERM_WRITEABLE | PERM_USER);
+	int ret = pf_read_env_page(faulted_env, (void*)fault_va);
+
+	if(ret == E_PAGE_NOT_EXIST_IN_PF){
+		if (!((fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) ||
+			(fault_va >= USTACKBOTTOM && fault_va < USTACKTOP))){
+			unmap_frame(faulted_env->env_page_directory, fault_va);
+			cprintf("Accessing an address outside user heap and stack\n");
+			env_exit();
+		}
+	}
+
+    faulted_env->page_last_WS_element->virtual_address = fault_va;
+    faulted_env->page_last_WS_element->sweeps_counter = 0;
+    frame_info->ws_ptr = faulted_env->page_last_WS_element;
+
+    if(faulted_env->page_last_WS_element == LIST_LAST(&(faulted_env->page_WS_list)))
+		faulted_env->page_last_WS_element = LIST_FIRST(&(faulted_env->page_WS_list));
+    else
+    	faulted_env->page_last_WS_element = faulted_env->page_last_WS_element->prev_next_info.le_next;
+}
+
+
 void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 {
 #if USE_KHEAP
@@ -251,6 +291,8 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		uint32 wsSize = env_page_ws_get_size(faulted_env);
 #endif
 
+	fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
+
 	if(wsSize < (faulted_env->page_WS_max_size))
 	{
 		//cprintf("PLACEMENT=========================WS Size = %d\n", wsSize );
@@ -258,11 +300,11 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		// Write your code here, remove the panic and write your code
 		//panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
 
-
 		//allocate and map
 		//read
 		//redesign this func
 		//normal allocation and mapping
+
 
 		int ret = pf_read_env_page(faulted_env, (void*)fault_va);
 
@@ -274,16 +316,14 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 			}
 		}
 
-		struct FrameInfo *frame;
-		int allocation = allocate_frame(&frame);
+		struct FrameInfo *frame_info;
+		allocate_frame(&frame_info);
 
-		if(frame == NULL || allocation != 0){
-			panic("FAILED ALLOCATION FOR THE FAULT");
-		}
-
-        map_frame(faulted_env->env_page_directory, frame, fault_va, PERM_WRITEABLE | PERM_USER);
+        map_frame(faulted_env->env_page_directory, frame_info, fault_va, PERM_WRITEABLE | PERM_USER);
 
         struct WorkingSetElement* WsElement = env_page_ws_list_create_element(faulted_env, fault_va);
+        frame_info->ws_ptr = WsElement;
+
         LIST_INSERT_TAIL(&(faulted_env->page_WS_list), WsElement);
 
         if (LIST_SIZE(&(faulted_env->page_WS_list)) == faulted_env->page_WS_max_size)
@@ -291,15 +331,46 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
         else
         	faulted_env->page_last_WS_element = NULL;
 	}
-
 	else
 	{
 		//cprintf("REPLACEMENT=========================WS Size = %d\n", wsSize );
 		//refer to the project presentation and documentation for details
 		//TODO: [PROJECT'24.MS3] [2] FAULT HANDLER II - Replacement
 		// Write your code here, remove the panic and write your code
-	    panic("page_fault_handler() Replacement is not implemented yet...!!");
+	    //panic("page_fault_handler() Replacement is not implemented yet...!!");
+
+		bool replaced = 0;
+		uint32* env_page_directory = faulted_env->env_page_directory;
+
+		while(!replaced){
+
+			if(faulted_env->page_last_WS_element == NULL)
+				faulted_env->page_last_WS_element = LIST_FIRST(&(faulted_env->page_WS_list));
+
+			while(faulted_env->page_last_WS_element != NULL){
+
+				uint32 perms = pt_get_page_permissions(env_page_directory, faulted_env->page_last_WS_element->virtual_address);
+				uint32 isModified = ((perms & PERM_MODIFIED) == PERM_MODIFIED);
+				uint32 isUsed = ((perms & PERM_USED) == PERM_USED);
+
+				if(isUsed){
+					faulted_env->page_last_WS_element->sweeps_counter = 0;
+					pt_set_page_permissions(env_page_directory, faulted_env->page_last_WS_element->virtual_address, 0, PERM_USED);
+				}
+				else faulted_env->page_last_WS_element->sweeps_counter++;
+
+				if((page_WS_max_sweeps >= 0 && faulted_env->page_last_WS_element->sweeps_counter >= page_WS_max_sweeps) ||
+				   (faulted_env->page_last_WS_element->sweeps_counter >= -page_WS_max_sweeps + isModified)){
+						replacePage(faulted_env, fault_va);
+						replaced = 1;
+						break;
+				}
+
+				faulted_env->page_last_WS_element = faulted_env->page_last_WS_element->prev_next_info.le_next;
+			}
+		}
 	}
+
 }
 
 

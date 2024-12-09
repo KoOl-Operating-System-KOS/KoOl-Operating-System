@@ -211,12 +211,13 @@ void free_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 
 	for (uint32 addr = virtual_address; addr < virtual_address + size; addr += PAGE_SIZE) {
 
-		uint32* ptr_page_table=NULL;
+		uint32* ptr_page_table;
 		get_page_table(e->env_page_directory, addr, &ptr_page_table);
-		ptr_page_table[PTX(addr)] = ptr_page_table[PTX(addr)] & (~MARKING_BIT);
-		pf_remove_env_page(e, addr);
 
 		struct FrameInfo *frame = get_frame_info(e->env_page_directory, addr, &ptr_page_table);
+
+		pt_set_page_permissions(e->env_page_directory, addr, 0, MARKING_BIT);
+		pf_remove_env_page(e, addr);
 
 		if(frame != 0){
 			struct WorkingSetElement* wse = frame->ws_ptr;
@@ -224,9 +225,8 @@ void free_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 			unmap_frame(e->env_page_directory, wse->virtual_address);
 
 			if (e->page_last_WS_element == wse)
-			{
 				e->page_last_WS_element = LIST_NEXT(wse);
-			}
+
 			LIST_REMOVE(&(e->page_WS_list), wse);
 
 			kfree(wse);
