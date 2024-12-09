@@ -365,8 +365,8 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 					replacePage(faulted_env, fault_va);
 					replaced = 1;
 					new_last_WS_element = faulted_env->page_last_WS_element->prev_next_info.le_next;
-					if(page_WS_max_sweeps == 0) break;
 					increment--;
+					if(increment <= 0) break;
 				}
 				faulted_env->page_last_WS_element = faulted_env->page_last_WS_element->prev_next_info.le_next;
 			}
