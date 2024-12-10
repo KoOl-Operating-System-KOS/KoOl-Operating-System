@@ -86,6 +86,10 @@ uint32  sys_set_value(uint32 idx, uint32 value, uint32* array);
 //Page File
 int 	sys_pf_calculate_allocated_pages(void);
 
+//Scheduler
+void   sys_env_set_priority(int32 envID, int priority);
+
+
 //Semaphores
 
 

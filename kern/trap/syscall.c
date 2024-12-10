@@ -361,6 +361,14 @@ void sys_set_uheap_strategy(uint32 heapStrategy)
 }
 
 /*******************************/
+/* Scheduler SYSTEM CALL */
+/*******************************/
+void sys_env_set_priority(int32 envID, int priority)
+{
+	env_set_priority( envID, priority);
+}
+
+/*******************************/
 /* SEMAPHORES SYSTEM CALLS */
 /*******************************/
 //[PROJECT'24.MS3] ADD SUITABLE CODE HERE
@@ -530,6 +538,10 @@ uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uin
 		break;
 	case SYS_free_user_mem:
 		sys_free_user_mem(a1,a2);
+		return 0;
+		break;
+	case SYS_env_set_priority:
+		sys_env_set_priority(a1,a2);
 		return 0;
 		break;
 	//======================================================================
