@@ -351,7 +351,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 				uint32 isModified = ((perms & PERM_MODIFIED) == PERM_MODIFIED);
 				uint32 isUsed = ((perms & PERM_USED) == PERM_USED);
 
-				if(isUsed && !replaced){
+				if(isUsed){
 					faulted_env->page_last_WS_element->sweeps_counter = 0;
 					pt_set_page_permissions(env_page_directory, faulted_env->page_last_WS_element->virtual_address, 0, PERM_USED);
 				}

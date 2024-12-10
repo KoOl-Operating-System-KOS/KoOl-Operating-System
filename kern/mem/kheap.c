@@ -117,7 +117,7 @@ uint32 TREE_first_fit(uint32 count, uint32* page_idx){
 
 void* TREE_alloc_FF(uint32 count){
 
-	if(get_value(1) < count) return NULL;
+	if(get_free_value(1) < count) return NULL;
 
 	uint32 page_idx;
 	uint32 cur = TREE_first_fit(count, &page_idx);

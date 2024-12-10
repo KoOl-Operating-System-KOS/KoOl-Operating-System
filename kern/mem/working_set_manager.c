@@ -28,6 +28,8 @@ inline struct WorkingSetElement* env_page_ws_list_create_element(struct Env* e, 
         panic("Could not allocate a working set element");
 
     WS_Element->virtual_address = virtual_address;
+    WS_Element->sweeps_counter = 0;
+
     pt_set_page_permissions(e->env_page_directory, (uint32)WS_Element, PERM_USER| MARKING_BIT, 0);
 
     uint32 * ptr_page_table;
