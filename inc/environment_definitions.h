@@ -172,7 +172,7 @@ struct Env {
 	//==================
 	/*CPU BSD Sched...*/
 	//==================
-
+	int64 env_ready_queue_time;
 	//================
 	/*STATISTICS...*/
 	//================

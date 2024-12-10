@@ -20,7 +20,6 @@ int get_load_average() ;
 void env_set_priority(int envID, int priority);
 void sched_set_starv_thresh(uint32 starvThresh);
 
-
 void sched_insert_ready0(struct Env* env);
 void sched_insert_ready(struct Env* env);
 void sched_remove_ready(struct Env* env);

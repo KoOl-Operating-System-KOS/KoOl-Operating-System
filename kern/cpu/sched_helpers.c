@@ -284,7 +284,7 @@ void sched_run_env(uint32 envId)
 		{
 			sched_remove_new(ptr_env);
 			sched_insert_ready(ptr_env);
-
+			ptr_env->env_ready_queue_time = timer_ticks();
 			/*2015*///if scheduler not run yet, then invoke it!
 			if (mycpu()->scheduler_status == SCH_STOPPED)
 			{
@@ -541,6 +541,7 @@ void sched_run_all()
 	{
 		ptr_env = dequeue(&ProcessQueues.env_new_queue);
 		sched_insert_ready(ptr_env);
+		ptr_env->env_ready_queue_time = timer_ticks();
 	}
 
 	release_spinlock(&(ProcessQueues.qlock)); 	//CS on Qs
@@ -701,21 +702,23 @@ int get_load_average()
 /********* for Priority RR Scheduler *************/
 void env_set_priority(int envID, int priority)
 {
-	//TODO: [PROJECT'24.MS3 - #06] [3] PRIORITY RR Scheduler - env_set_priority
+    //TODO: [PROJECT'24.MS3 - #06] [3] PRIORITY RR Scheduler - env_set_priority
 
-	//Get the process of the given ID
-	struct Env* proc ;
-	envid2env(envID, &proc, 0);
+    //Get the process of the given ID
+    struct Env* proc ;
+    envid2env(envID, &proc, 0);
 
-	//Your code is here
-	//Comment the following line
-	panic("Not implemented yet");
+    proc->priority = priority;
+
+    if(proc->env_status==ENV_READY){
+        sched_remove_ready(proc);
+        sched_insert_ready(proc);
+        proc->env_ready_queue_time = timer_ticks();
+    }
 }
 
 void sched_set_starv_thresh(uint32 starvThresh)
 {
 	//TODO: [PROJECT'24.MS3 - #06] [3] PRIORITY RR Scheduler - sched_set_starv_thresh
-	//Your code is here
-	//Comment the following line
-	panic("Not implemented yet");
+	starvation_threshold = starvThresh;
 }

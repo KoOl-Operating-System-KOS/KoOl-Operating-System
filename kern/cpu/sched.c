@@ -247,18 +247,23 @@ void sched_init_BSD(uint8 numOfLevels, uint8 quantum)
 void sched_init_PRIRR(uint8 numOfPriorities, uint8 quantum, uint32 starvThresh)
 {
 	//TODO: [PROJECT'24.MS3 - #07] [3] PRIORITY RR Scheduler - sched_init_PRIRR
-	//Your code is here
-	//Comment the following line
-	panic("Not implemented yet");
 
+	sched_delete_ready_queues();
 
+	ProcessQueues.env_ready_queues = kmalloc(numOfPriorities * sizeof(struct Env_Queue));
 
+	quantums = kmalloc(sizeof(uint8));
+	quantums[0] = quantum;
+	kclock_set_quantum(quantums[0]);
 
+	next_starvation = (((int64)1 << 62) - 1) + ((int64)1 << 62);
+	sched_set_starv_thresh(starvThresh);
+	num_of_ready_queues = numOfPriorities;
 
-
-
-
-
+	for(int i = 0; i < num_of_ready_queues; i++)
+	{
+		init_queue(&ProcessQueues.env_ready_queues[i]);
+	}
 	//=========================================
 	//DON'T CHANGE THESE LINES=================
 	uint16 cnt0 = kclock_read_cnt0_latch() ; //read after write to ensure it's set to the desired value
@@ -348,9 +353,29 @@ struct Env* fos_scheduler_PRIRR()
 		panic("fos_scheduler_PRIRR: q.lock is not held by this CPU while it's expected to be.");
 	/****************************************************************************************/
 	//TODO: [PROJECT'24.MS3 - #08] [3] PRIORITY RR Scheduler - fos_scheduler_PRIRR
-	//Your code is here
-	//Comment the following line
-	panic("Not implemented yet");
+
+	struct Env *next_env = NULL;
+	struct Env *cur_env = get_cpu_proc();
+	//If the curenv still exists, then insert it again in the ready queue
+	if (cur_env != NULL)
+	{
+		sched_insert_ready(cur_env);
+		cur_env->env_ready_queue_time = timer_ticks();
+	}
+
+	//Pick the next environment from the ready queue
+	for(int i = 0; i < num_of_ready_queues; i++)
+	{
+		if(queue_size(&ProcessQueues.env_ready_queues[i]))
+		{
+			next_env = dequeue(&(ProcessQueues.env_ready_queues[i]));
+			break;
+		}
+	}
+
+	kclock_set_quantum(quantums[0]);
+
+	return next_env;
 }
 
 //========================================
@@ -362,9 +387,13 @@ void clock_interrupt_handler(struct Trapframe* tf)
 	if (isSchedMethodPRIRR())
 	{
 		//TODO: [PROJECT'24.MS3 - #09] [3] PRIORITY RR Scheduler - clock_interrupt_handler
-		//Your code is here
-		//Comment the following line
-		panic("Not implemented yet");
+//		if(next_starvation == ((int64)1 << 62) || timer_ticks() == next_starvation)
+//		{
+//			for(int i = 0; i < num_of_ready_queues; i++)
+//			{
+//				next_starvation = min(next_starvation , (starvation_threshold + ProcessQueues.env_ready_queues[i].lh_first->env_ready_queue_time));
+//			}
+//		}
 	}
 
 
