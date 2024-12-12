@@ -5,6 +5,12 @@
 #include "memory_manager.h"
 
 #define max(a, b) (a > b ? a : b)
+
+uint32 page_allocator_start;
+uint32 PAGES_COUNT;
+uint32 info_tree[KHEAP_PAGES_COUNT * 2 * sizeof(uint32)];
+struct sleeplock kernel_lock;
+uint32 acquire_count;
 uint32 virtual_address_directory[1<<20];
 
 void free_and_unmap_pages(uint32 start_address,uint32 frames_count)
@@ -281,13 +287,7 @@ int initialize_kheap_dynamic_allocator(uint32 daStart, uint32 initSizeToAllocate
 
     acquire_kernel_lock();
 
-    info_tree = (void*)(Hard_Limit + PAGE_SIZE);
-    uint32 DS_Size = ROUNDUP(PAGES_COUNT * 2 * sizeof(uint32), PAGE_SIZE);
-
-    page_allocator_start = Hard_Limit + PAGE_SIZE + DS_Size;
-    allocate_and_map_pages(Hard_Limit + PAGE_SIZE, page_allocator_start);
-
-    memset(info_tree, 0, DS_Size);
+    page_allocator_start = Hard_Limit + PAGE_SIZE;
     update_node(TREE_get_node(0), (KERNEL_HEAP_MAX - page_allocator_start) / PAGE_SIZE, 0);
 
     release_kernel_lock();
