@@ -395,10 +395,7 @@ void clock_interrupt_handler(struct Trapframe* tf)
 				struct Env *cur_env = LIST_LAST(&ProcessQueues.env_ready_queues[i]);
 				if(timer_ticks() - cur_env->env_ready_queue_time >= starvation_threshold){
 					flag_sched = 1;
-					dequeue(&(ProcessQueues.env_ready_queues[i]));
-					cur_env->priority--;
-					sched_insert_ready(cur_env);
-					cur_env->env_ready_queue_time = timer_ticks();
+					env_set_priority(cur_env->env_id,cur_env->priority-1);
 
 				}
 				else{
