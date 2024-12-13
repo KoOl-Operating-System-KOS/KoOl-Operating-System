@@ -11,6 +11,7 @@
 #include <kern/cpu/cpu.h>
 #include <kern/cpu/picirq.h>
 
+bool flag_sched = 0;
 
 uint32 isSchedMethodRR(){return (scheduler_method == SCH_RR);}
 uint32 isSchedMethodMLFQ(){return (scheduler_method == SCH_MLFQ); }
@@ -256,7 +257,6 @@ void sched_init_PRIRR(uint8 numOfPriorities, uint8 quantum, uint32 starvThresh)
 	quantums[0] = quantum;
 	kclock_set_quantum(quantums[0]);
 
-	next_starvation = (((int64)1 << 62) - 1) + ((int64)1 << 62);
 	sched_set_starv_thresh(starvThresh);
 	num_of_ready_queues = numOfPriorities;
 
@@ -387,13 +387,35 @@ void clock_interrupt_handler(struct Trapframe* tf)
 	if (isSchedMethodPRIRR())
 	{
 		//TODO: [PROJECT'24.MS3 - #09] [3] PRIORITY RR Scheduler - clock_interrupt_handler
-//		if(next_starvation == ((int64)1 << 62) || timer_ticks() == next_starvation)
-//		{
-//			for(int i = 0; i < num_of_ready_queues; i++)
-//			{
-//				next_starvation = min(next_starvation , (starvation_threshold + ProcessQueues.env_ready_queues[i].lh_first->env_ready_queue_time));
-//			}
-//		}
+		for(int i = 1; i < num_of_ready_queues; i++)
+		{
+			if (!holding_spinlock(&ProcessQueues.qlock))
+					acquire_spinlock(&ProcessQueues.qlock);
+			while(queue_size(&ProcessQueues.env_ready_queues[i])){
+				struct Env *cur_env = LIST_LAST(&ProcessQueues.env_ready_queues[i]);
+				if(timer_ticks() - cur_env->env_ready_queue_time >= starvation_threshold){
+					flag_sched = 1;
+					dequeue(&(ProcessQueues.env_ready_queues[i]));
+					cur_env->priority--;
+					sched_insert_ready(cur_env);
+					cur_env->env_ready_queue_time = timer_ticks();
+
+				}
+				else{
+					break;
+				}
+			}
+
+			if (holding_spinlock(&ProcessQueues.qlock))
+					release_spinlock(&ProcessQueues.qlock);
+		}
+		if(flag_sched)
+		{
+			sched_print_all();
+			flag_sched = 0;
+		}
+
+
 	}
 
 
@@ -482,4 +504,3 @@ void update_WS_time_stamps()
 			}
 		}
 	}
-
