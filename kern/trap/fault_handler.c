@@ -300,20 +300,21 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		//redesign this func
 		//normal allocation and mapping
 
+		struct FrameInfo *frame_info;
+
+		allocate_frame(&frame_info);
+        map_frame(faulted_env->env_page_directory, frame_info, fault_va, PERM_WRITEABLE | PERM_USER);
+
 		int ret = pf_read_env_page(faulted_env, (void*)fault_va);
 
 		if(ret == E_PAGE_NOT_EXIST_IN_PF){
 			if (!((fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) ||
 				(fault_va >= USTACKBOTTOM && fault_va < USTACKTOP))){
+				unmap_frame(faulted_env->env_page_directory, fault_va);
 				cprintf("Accessing an address outside user heap and stack\n");
 				env_exit();
 			}
 		}
-
-		struct FrameInfo *frame_info;
-		allocate_frame(&frame_info);
-
-        map_frame(faulted_env->env_page_directory, frame_info, fault_va, PERM_WRITEABLE | PERM_USER);
 
         struct WorkingSetElement* WsElement = env_page_ws_list_create_element(faulted_env, fault_va);
         frame_info->ws_ptr = WsElement;
