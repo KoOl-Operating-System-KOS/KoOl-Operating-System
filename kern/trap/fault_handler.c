@@ -300,31 +300,34 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		//redesign this func
 		//normal allocation and mapping
 
+		struct FrameInfo *frame_info;
+
+		allocate_frame(&frame_info);
+        map_frame(faulted_env->env_page_directory, frame_info, fault_va, PERM_WRITEABLE | PERM_USER);
 
 		int ret = pf_read_env_page(faulted_env, (void*)fault_va);
 
 		if(ret == E_PAGE_NOT_EXIST_IN_PF){
 			if (!((fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) ||
 				(fault_va >= USTACKBOTTOM && fault_va < USTACKTOP))){
+				unmap_frame(faulted_env->env_page_directory, fault_va);
 				cprintf("Accessing an address outside user heap and stack\n");
 				env_exit();
 			}
 		}
 
-		struct FrameInfo *frame_info;
-		allocate_frame(&frame_info);
-
-        map_frame(faulted_env->env_page_directory, frame_info, fault_va, PERM_WRITEABLE | PERM_USER);
-
         struct WorkingSetElement* WsElement = env_page_ws_list_create_element(faulted_env, fault_va);
         frame_info->ws_ptr = WsElement;
 
-        LIST_INSERT_TAIL(&(faulted_env->page_WS_list), WsElement);
+        if(faulted_env->page_last_WS_element == NULL){
+        	LIST_INSERT_TAIL(&(faulted_env->page_WS_list), WsElement);
 
-        if (LIST_SIZE(&(faulted_env->page_WS_list)) == faulted_env->page_WS_max_size)
-        	faulted_env->page_last_WS_element = LIST_FIRST(&(faulted_env->page_WS_list));
+        	if (LIST_SIZE(&(faulted_env->page_WS_list)) == faulted_env->page_WS_max_size)
+        		faulted_env->page_last_WS_element = LIST_FIRST(&(faulted_env->page_WS_list));
+        }
         else
-        	faulted_env->page_last_WS_element = NULL;
+        	LIST_INSERT_BEFORE(&(faulted_env->page_WS_list), faulted_env->page_last_WS_element, WsElement);
+
 	}
 	else
 	{
@@ -351,7 +354,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 				uint32 isModified = ((perms & PERM_MODIFIED) == PERM_MODIFIED);
 				uint32 isUsed = ((perms & PERM_USED) == PERM_USED);
 
-				if(isUsed && !replaced){
+				if(isUsed){
 					faulted_env->page_last_WS_element->sweeps_counter = 0;
 					pt_set_page_permissions(env_page_directory, faulted_env->page_last_WS_element->virtual_address, 0, PERM_USED);
 				}
