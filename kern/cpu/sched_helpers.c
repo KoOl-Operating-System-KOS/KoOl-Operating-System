@@ -153,9 +153,9 @@ void sched_insert_ready(struct Env* env)
 
 	assert(env != NULL);
 	{
-		//cprintf("\nInserting %d into ready queue 0\n", env->env_id);
 		env->env_status = ENV_READY ;
 		enqueue(&(ProcessQueues.env_ready_queues[env->priority]), env);
+		env->env_ready_queue_time = timer_ticks();
 	}
 }
 
@@ -284,7 +284,6 @@ void sched_run_env(uint32 envId)
 		{
 			sched_remove_new(ptr_env);
 			sched_insert_ready(ptr_env);
-			ptr_env->env_ready_queue_time = timer_ticks();
 			/*2015*///if scheduler not run yet, then invoke it!
 			if (mycpu()->scheduler_status == SCH_STOPPED)
 			{
@@ -541,7 +540,6 @@ void sched_run_all()
 	{
 		ptr_env = dequeue(&ProcessQueues.env_new_queue);
 		sched_insert_ready(ptr_env);
-		ptr_env->env_ready_queue_time = timer_ticks();
 	}
 
 	release_spinlock(&(ProcessQueues.qlock)); 	//CS on Qs
@@ -713,7 +711,6 @@ void env_set_priority(int envID, int priority)
     if(proc->env_status==ENV_READY){
         sched_remove_ready(proc);
         sched_insert_ready(proc);
-        proc->env_ready_queue_time = timer_ticks();
     }
 }
 

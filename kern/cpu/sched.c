@@ -11,7 +11,6 @@
 #include <kern/cpu/cpu.h>
 #include <kern/cpu/picirq.h>
 
-bool flag_sched = 0;
 
 uint32 isSchedMethodRR(){return (scheduler_method == SCH_RR);}
 uint32 isSchedMethodMLFQ(){return (scheduler_method == SCH_MLFQ); }
@@ -360,7 +359,6 @@ struct Env* fos_scheduler_PRIRR()
 	if (cur_env != NULL)
 	{
 		sched_insert_ready(cur_env);
-		cur_env->env_ready_queue_time = timer_ticks();
 	}
 
 	//Pick the next environment from the ready queue
@@ -394,9 +392,7 @@ void clock_interrupt_handler(struct Trapframe* tf)
 			while(queue_size(&ProcessQueues.env_ready_queues[i])){
 				struct Env *cur_env = LIST_LAST(&ProcessQueues.env_ready_queues[i]);
 				if(timer_ticks() - cur_env->env_ready_queue_time >= starvation_threshold){
-					flag_sched = 1;
 					env_set_priority(cur_env->env_id,cur_env->priority-1);
-
 				}
 				else{
 					break;
@@ -406,13 +402,7 @@ void clock_interrupt_handler(struct Trapframe* tf)
 			if (holding_spinlock(&ProcessQueues.qlock))
 					release_spinlock(&ProcessQueues.qlock);
 		}
-		if(flag_sched)
-		{
 			sched_print_all();
-			flag_sched = 0;
-		}
-
-
 	}
 
 
