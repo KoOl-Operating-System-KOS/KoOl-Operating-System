@@ -17,8 +17,7 @@ void free_and_unmap_pages(uint32 start_address,uint32 frames_count)
 {
     uint32 current_page = start_address;
     uint32 * ptr_page_table;
-    for(int i = 0; i < frames_count; i++)
-    {
+    for(int i = 0; i < frames_count; i++) {
     	struct FrameInfo *frame = get_frame_info(ptr_page_directory, current_page, &ptr_page_table);
         free_frame(frame);
         virtual_address_directory[to_frame_number(frame)] = -1;
@@ -101,22 +100,15 @@ inline void update_node(uint32 cur, uint32 val, bool isAllocated){
 }
 
 uint32 TREE_get_node(uint32 page_idx){
-	uint32 cur = 1, l = 0, r = PAGES_COUNT-1;
-	while(l < r){
-		uint32 mid = (l + r) >> 1;
-		if(page_idx <= mid) r = mid, cur <<= 1;
-		else l = mid + 1, cur = cur << 1 | 1;
-	}
-	return cur;
+	return PAGES_COUNT + page_idx;
 }
 
-uint32 TREE_first_fit(uint32 count, uint32* page_idx){
+uint32 TREE_first_fit(uint32 count){
 	uint32 cur = 1, l = 0, r = PAGES_COUNT-1;
 	while(l < r){
 		uint32 mid = (l + r) >> 1;
 		if(get_free_value(cur << 1) >= count) r = mid, cur <<= 1;
 		else l = mid + 1, cur = cur << 1 | 1;
-		*page_idx = l;
 	}
 	return cur;
 }
@@ -125,8 +117,8 @@ void* TREE_alloc_FF(uint32 count){
 
 	if(get_free_value(1) < count) return NULL;
 
-	uint32 page_idx;
-	uint32 cur = TREE_first_fit(count, &page_idx);
+	uint32 cur = TREE_first_fit(count);
+	uint32 page_idx = cur - PAGES_COUNT;
 	uint32 free_pages = get_free_value(cur);
 
 	void* va = (void*)(page_allocator_start + page_idx * PAGE_SIZE);

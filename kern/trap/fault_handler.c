@@ -300,7 +300,6 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		//redesign this func
 		//normal allocation and mapping
 
-
 		int ret = pf_read_env_page(faulted_env, (void*)fault_va);
 
 		if(ret == E_PAGE_NOT_EXIST_IN_PF){
@@ -319,12 +318,15 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
         struct WorkingSetElement* WsElement = env_page_ws_list_create_element(faulted_env, fault_va);
         frame_info->ws_ptr = WsElement;
 
-        LIST_INSERT_TAIL(&(faulted_env->page_WS_list), WsElement);
+        if(faulted_env->page_last_WS_element == NULL){
+        	LIST_INSERT_TAIL(&(faulted_env->page_WS_list), WsElement);
 
-        if (LIST_SIZE(&(faulted_env->page_WS_list)) == faulted_env->page_WS_max_size)
-        	faulted_env->page_last_WS_element = LIST_FIRST(&(faulted_env->page_WS_list));
+        	if (LIST_SIZE(&(faulted_env->page_WS_list)) == faulted_env->page_WS_max_size)
+        		faulted_env->page_last_WS_element = LIST_FIRST(&(faulted_env->page_WS_list));
+        }
         else
-        	faulted_env->page_last_WS_element = NULL;
+        	LIST_INSERT_BEFORE(&(faulted_env->page_WS_list), faulted_env->page_last_WS_element, WsElement);
+
 	}
 	else
 	{

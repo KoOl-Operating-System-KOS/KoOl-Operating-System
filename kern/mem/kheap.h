@@ -69,7 +69,7 @@ inline uint32 get_free_value(uint32 cur);
 inline uint32 get_value(uint32 cur);
 inline void update_node(uint32 cur, uint32 val, bool isAllocated);
 uint32 TREE_get_node(uint32 page_idx);
-uint32 TREE_first_fit(uint32 count, uint32* page_idx);
+uint32 TREE_first_fit(uint32 count);
 void* TREE_alloc_FF(uint32 count);
 bool TREE_free(uint32 page_idx);
 void* TREE_realloc(uint32 page_idx, uint32 new_count);
