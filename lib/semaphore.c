@@ -12,7 +12,7 @@ struct semaphore create_semaphore(char *semaphoreName, uint32 value)
 	struct semaphore samphoor = smalloc(semaphoreName,sizeof(struct semaphore),1);
 	samphoor.semdata = malloc(sizeof(samphoor.semdata));
 	samphoor.semdata->count = value;
-	// system call for queue functions
+	// system call for queue functions to initialize the queue inside the semdata
 	// LIST_INIT(&samphoor.semdata->queue);
 
 	return samphoor;
@@ -41,8 +41,9 @@ void wait_semaphore(struct semaphore sem)
 	     xchg(&keyw,&sem.lock);
 	     semaphore_count(sem)--;
 	     if(semaphore_count(sem) < 0){
-	    	 //put process in sem.queue.
-	    	 //block process.
+	    	 //sys calls to
+	    	 //1-put process in sem.queue.
+	    	 //2-block process.
 	     }
 	     sem.lock =0;
 	}
@@ -59,8 +60,9 @@ void signal_semaphore(struct semaphore sem)
          xchg(&keys,&sem.lock);
 		 semaphore_count(sem)++;
          if(semaphore_count(sem) <= 0){
-        	//remove process from queue.
-        	//place process on ready list.
+        	 // sys calls to:
+        	//1- remove process from queue.
+        	//2- place process on ready list.
          }
          sem.lock = 0;
     }
