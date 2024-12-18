@@ -306,6 +306,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		if(ret == E_PAGE_NOT_EXIST_IN_PF){
 			if (!((fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) ||
 				(fault_va >= USTACKBOTTOM && fault_va < USTACKTOP))){
+
 				cprintf("Accessing an address outside user heap and stack\n");
 				env_exit();
 			}

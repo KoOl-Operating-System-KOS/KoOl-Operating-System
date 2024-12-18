@@ -320,18 +320,31 @@ void sys_allocate_user_mem(uint32 virtual_address, uint32 size)
 	syscall(SYS_allocate_user_mem, virtual_address, size, 0, 0, 0);
 }
 
-uint32 sys_get_value(uint32 idx, uint32* array){
-	return syscall(SYS_get_value, idx, (uint32)array, 0, 0, 0);
-}
-
-uint32 sys_set_value(uint32 idx, uint32 value, uint32* array){
-	return syscall(SYS_set_value, idx, value, (uint32)array, 0, 0);
-}
-
 // samphores sys calls
-void sys_initialize_queue(struct Env_Queue* queue ){
+void sys_queue_initialize(struct Env_Queue* queue ){
 
-	syscall(SYS_queue_initialize,queue);
+	syscall(SYS_queue_initialize,(uint32)queue,0,0,0,0);
 
+}
+
+struct Share* sys_getshare(int32 ownerEnvID, char* semaphoreName ){
+
+	return (struct Share*)syscall(SYS_get_share,(uint32)ownerEnvID,(uint32)semaphoreName,0,0,0);
+
+}
+
+void sys_proc_enqueue_block(struct Env* e,struct Env_Queue* queue){
+
+	syscall(SYS_process_in_queue_block,(uint32)e,(uint32)queue,0,0,0);
+}
+
+void sys_proc_dequeue_ready(struct Env_Queue* queue){
+
+	syscall(SYS_remove_process_ready,(uint32)queue,0,0,0,0);
+}
+
+struct Env* sys_getCurrentProc(){
+
+	return (struct Env*)syscall(SYS_current_proc,0,0,0,0,0);
 }
 

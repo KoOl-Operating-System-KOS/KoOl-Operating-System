@@ -53,11 +53,11 @@ enum
     SYS_free_user_mem,
     SYS_allocate_user_mem,
 	SYS_queue_initialize,
+	SYS_get_share,
 	SYS_process_in_queue_block,
 	SYS_remove_process_ready,
+	SYS_current_proc,
 	//=====================================================================
-	SYS_get_value,
-	SYS_set_value,
 	NSYSCALLS
 };
 
