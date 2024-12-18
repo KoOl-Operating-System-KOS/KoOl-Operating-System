@@ -9,11 +9,12 @@ struct semaphore create_semaphore(char *semaphoreName, uint32 value)
 	//panic("create_semaphore is not implemented yet");
 	//Your Code is Here...
 
-	struct semaphore samphoor = smalloc(semaphoreName,sizeof(struct semaphore),1);
+	struct semaphore samphoor = (struct semaphore)smalloc(semaphoreName,sizeof(struct semaphore),1);
 	samphoor.semdata = malloc(sizeof(samphoor.semdata));
 	samphoor.semdata->count = value;
+	samphoor.lock=0;
 	// system call for queue functions to initialize the queue inside the semdata
-	// LIST_INIT(&samphoor.semdata->queue);
+	sys_queue_initialize(&samphoor.semdata->queue);
 
 	return samphoor;
 }

@@ -87,7 +87,7 @@ uint32  sys_set_value(uint32 idx, uint32 value, uint32* array);
 int 	sys_pf_calculate_allocated_pages(void);
 
 //Semaphores
-
+void sys_queue_initialize(struct Env_Queue* queue);
 
 //Sharing
 //2017

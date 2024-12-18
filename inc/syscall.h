@@ -52,6 +52,9 @@ enum
 	SYS_sbrk,
     SYS_free_user_mem,
     SYS_allocate_user_mem,
+	SYS_queue_initialize,
+	SYS_process_in_queue_block,
+	SYS_remove_process_ready,
 	//=====================================================================
 	SYS_get_value,
 	SYS_set_value,

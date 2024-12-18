@@ -328,3 +328,10 @@ uint32 sys_set_value(uint32 idx, uint32 value, uint32* array){
 	return syscall(SYS_set_value, idx, value, (uint32)array, 0, 0);
 }
 
+// samphores sys calls
+void sys_initialize_queue(struct Env_Queue* queue ){
+
+	syscall(SYS_queue_initialize,queue);
+
+}
+

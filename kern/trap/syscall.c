@@ -365,6 +365,11 @@ void sys_set_uheap_strategy(uint32 heapStrategy)
 /*******************************/
 //[PROJECT'24.MS3] ADD SUITABLE CODE HERE
 
+void sys_queue_initialize(struct Env_Queue* queue){
+
+	LIST_INIT(queue);
+}
+
 
 /*******************************/
 /* SHARED MEMORY SYSTEM CALLS */

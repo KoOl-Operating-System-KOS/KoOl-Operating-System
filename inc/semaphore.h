@@ -20,7 +20,7 @@ struct __semdata
 };
 struct semaphore
 {
-	struct spinlock lock =0;
+	struct spinlock* lock;
 	struct __semdata* semdata ;
 };
 struct semaphore create_semaphore(char *semaphoreName, uint32 value);
