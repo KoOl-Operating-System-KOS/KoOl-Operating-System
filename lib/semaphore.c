@@ -9,15 +9,15 @@ struct semaphore create_semaphore(char *semaphoreName, uint32 value)
     //panic("create_semaphore is not implemented yet");
     //Your Code is Here...
 
-    struct semaphore* samphoor = smalloc(semaphoreName,sizeof(struct semaphore),1);
-    samphoor->semdata = malloc(sizeof(struct __semdata));
-    samphoor->semdata->count = value;
-    samphoor->semdata->lock=0;
-    strcpy(samphoor->semdata->name, semaphoreName);
+    struct semaphore samphoor;
+    samphoor.semdata = malloc(sizeof(struct __semdata));
+    samphoor.semdata->count = value;
+    samphoor.semdata->lock=0;
+    strcpy(samphoor.semdata->name, semaphoreName);
     // system call for queue functions to initialize the queue inside the semdata
-    sys_queue_initialize(&samphoor->semdata->queue);
+    sys_queue_initialize(&samphoor.semdata->queue);
 
-    return *(samphoor);
+    return samphoor;
 }
 
 struct semaphore get_semaphore(int32 ownerEnvID, char* semaphoreName)
@@ -27,8 +27,7 @@ struct semaphore get_semaphore(int32 ownerEnvID, char* semaphoreName)
 	//panic("get_semaphore is not implemented yet");
 	//Your Code is Here...
 	struct semaphore samphoor;
-
-	samphoor = *((struct semaphore*) sys_getshare(ownerEnvID,semaphoreName));
+	samphoor.semdata = (struct __semdata*) sget(ownerEnvID,semaphoreName);
 
 	return samphoor;
 }
@@ -39,16 +38,16 @@ void wait_semaphore(struct semaphore sem)
 	//COMMENT THE FOLLOWING LINE BEFORE START CODING
 	//panic("wait_semaphore is not implemented yet");
 	//Your Code is Here...
+
 	int keyw = 1;
-	while(keyw != 0){
-		xchg(&(sem.semdata->lock),keyw);
-	    sem.semdata->count--;
-	    if(semaphore_count(sem) < 0){
-	    	struct Env* env = sys_getCurrentProc();
-	    	sys_proc_enqueue_block(env,&sem.semdata->queue);
-	    }
-	}
-	 sem.semdata->lock =0;
+	while(xchg(&(sem.semdata->lock),keyw) != 0);
+	sem.semdata->count--;
+	 if(semaphore_count(sem) < 0){
+	    struct Env* env = sys_getCurrentProc();
+	    sys_proc_enqueue_block(env,&sem.semdata->queue);
+	    sem.semdata->lock =0;
+	  }
+      sem.semdata->lock =0;
 }
 
 void signal_semaphore(struct semaphore sem)
@@ -58,13 +57,11 @@ void signal_semaphore(struct semaphore sem)
 	//panic("signal_semaphore is not implemented yet");
 	//Your Code is Here...
     int keys = 1;
-    while(keys != 0){
-    	xchg(&(sem.semdata->lock),keys);
-         sem.semdata->count++;
-         if(semaphore_count(sem) <= 0){
-
-        	 sys_proc_dequeue_ready(&sem.semdata->queue);
-         }
+    while(xchg(&(sem.semdata->lock),keys) != 0)
+    sem.semdata->count++;
+    if(semaphore_count(sem) <= 0){
+       sys_proc_dequeue_ready(&sem.semdata->queue);
+       sem.semdata->lock = 0;
     }
     sem.semdata->lock = 0;
 }

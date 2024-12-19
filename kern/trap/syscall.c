@@ -368,17 +368,21 @@ struct Share* sys_getshare(int32 ownerEnvID, char* semaphoreName) {
 
 void sys_proc_enqueue_block(struct Env* e,struct Env_Queue* queue){
 
+    acquire_spinlock(&ProcessQueues.qlock);
 	sched_remove_ready(e);
 	e->env_status = ENV_BLOCKED;
 	enqueue(queue,e);
+    release_spinlock(&ProcessQueues.qlock);
+
 }
 void sys_proc_dequeue_ready(struct Env_Queue* queue){
 
+	acquire_spinlock(&ProcessQueues.qlock);
 	struct Env* eneeded = dequeue(queue);
-
 	eneeded->env_status = ENV_READY;
-
 	sched_insert_ready(eneeded);
+	release_spinlock(&ProcessQueues.qlock);
+
 }
 
 struct Env* sys_getCurrentProc(){
