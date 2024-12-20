@@ -300,14 +300,6 @@ int sys_pf_calculate_allocated_pages(void)
 /* USER HEAP SYSTEM CALLS */
 /*******************************/
 
-uint32 sys_get_value(uint32 idx, uint32* array){
-	return array[idx];
-}
-
-uint32 sys_set_value(uint32 idx, uint32 value, uint32* array){
-	return array[idx] = value;
-}
-
 void sys_free_user_mem(uint32 virtual_address, uint32 size)
 {
 	if(isBufferingEnabled())
@@ -373,6 +365,40 @@ void sys_env_set_priority(int32 envID, int priority)
 /*******************************/
 //[PROJECT'24.MS3] ADD SUITABLE CODE HERE
 
+void sys_queue_initialize(struct Env_Queue* queue){
+
+	LIST_INIT(queue);
+}
+struct Share* sys_getshare(int32 ownerEnvID, char* semaphoreName) {
+
+    return (struct Share*) get_share(ownerEnvID, semaphoreName);
+}
+
+void sys_proc_enqueue_block(struct Env* e,struct Env_Queue* queue){
+
+    acquire_spinlock(&ProcessQueues.qlock);
+
+	enqueue(queue,e);
+	e->env_status = ENV_BLOCKED;
+    sched();
+
+    release_spinlock(&ProcessQueues.qlock);
+
+}
+void sys_proc_dequeue_ready(struct Env_Queue* queue){
+
+	acquire_spinlock(&ProcessQueues.qlock);
+	struct Env* eneeded = dequeue(queue);
+	eneeded->env_status = ENV_READY;
+	sched_insert_ready(eneeded);
+	release_spinlock(&ProcessQueues.qlock);
+
+}
+
+struct Env* sys_getCurrentProc(){
+
+	return (struct Env*)get_cpu_proc();
+}
 
 /*******************************/
 /* SHARED MEMORY SYSTEM CALLS */
@@ -628,6 +654,21 @@ uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uin
 		return sys_getSizeOfSharedObject((int32)a1, (char*)a2);
 		break;
 
+	case SYS_get_share:
+		return (uint32)sys_getshare((int32)a1,(char*)a2);///////////////////////////////////
+		break;
+	case SYS_queue_initialize:
+		sys_queue_initialize((struct Env_Queue*)a1);
+		break;
+	case SYS_current_proc:
+		return (uint32)sys_getCurrentProc();
+		break;
+	case SYS_process_in_queue_block:
+		sys_proc_enqueue_block((struct Env*) a1,(struct Env_Queue*) a2);
+		break;
+	case SYS_remove_process_ready:
+		sys_proc_dequeue_ready((struct Env_Queue*) a1);
+		break;
 	case SYS_create_env:
 		return sys_create_env((char*)a1, (uint32)a2, (uint32)a3, (uint32)a4);
 		break;
@@ -707,14 +748,6 @@ uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uin
 	case SYS_utilities:
 		sys_utilities((char*)a1, (int)a2);
 		return 0;
-
-	case SYS_get_value:
-		return sys_get_value(a1, (uint32*)a2);
-		break;
-
-	case SYS_set_value:
-		return sys_set_value(a1, a2, (uint32*)a3);
-		break;
 
 	case NSYSCALLS:
 		return 	-E_INVAL;

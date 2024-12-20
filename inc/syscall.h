@@ -52,6 +52,11 @@ enum
 	SYS_sbrk,
     SYS_free_user_mem,
     SYS_allocate_user_mem,
+	SYS_queue_initialize,
+	SYS_get_share,
+	SYS_process_in_queue_block,
+	SYS_remove_process_ready,
+	SYS_current_proc,
 	//=====================================================================
 	SYS_env_set_priority, // MS3
 	SYS_get_value,

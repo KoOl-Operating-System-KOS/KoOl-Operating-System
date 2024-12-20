@@ -80,8 +80,6 @@ uint32 	sys_isUHeapPlacementStrategyNEXTFIT();
 uint32 	sys_isUHeapPlacementStrategyWORSTFIT();
 void 	sys_set_uheap_strategy(uint32 heapStrategy);
 
-uint32  sys_get_value(uint32 idx, uint32* array);
-uint32  sys_set_value(uint32 idx, uint32 value, uint32* array);
 
 //Page File
 int 	sys_pf_calculate_allocated_pages(void);
@@ -91,7 +89,11 @@ void   sys_env_set_priority(int32 envID, int priority);
 
 
 //Semaphores
-
+void sys_queue_initialize(struct Env_Queue* queue);
+struct Share* sys_getshare(int32 ownerEnvID, char* semaphoreName);
+void sys_proc_enqueue_block(struct Env* e,struct Env_Queue* queue);
+void sys_proc_dequeue_ready(struct Env_Queue* queue);
+struct Env* sys_getCurrentProc();
 
 //Sharing
 //2017

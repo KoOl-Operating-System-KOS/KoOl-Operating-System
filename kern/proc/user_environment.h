@@ -36,7 +36,7 @@ void switchuvm(struct Env *proc);	//switch to the user virtual memory (TSS & Pro
 void switchkvm(void);				//switch to the kernel virtual memory (Kern Directory)
 void env_start(void);				//called only at the very first scheduling by scheduler()
 void env_exit(void);				//add the running env to the EXIT queue, then reinvoke the scheduler
-
+struct Env* get_cpu_proc(void);
 ///===================================================================================
 
 #endif // !FOS_KERN_ENV_H
