@@ -16,7 +16,6 @@ struct semaphore create_semaphore(char *semaphoreName, uint32 value)
     strcpy(samphoor.semdata->name, semaphoreName);
     // system call for queue functions to initialize the queue inside the semdata
     sys_queue_initialize(&samphoor.semdata->queue);
-
     return samphoor;
 }
 
@@ -29,7 +28,6 @@ struct semaphore get_semaphore(int32 ownerEnvID, char* semaphoreName)
 
 	struct semaphore samphoor;
 	samphoor.semdata = (struct __semdata*) sget(ownerEnvID,semaphoreName);
-
 	return samphoor;
 }
 
@@ -58,7 +56,7 @@ void signal_semaphore(struct semaphore sem)
 	//panic("signal_semaphore is not implemented yet");
 	//Your Code is Here...
     int keys = 1;
-    while(xchg(&(sem.semdata->lock),keys) != 0)
+    while(xchg(&(sem.semdata->lock),keys) != 0);
     sem.semdata->count++;
     if(semaphore_count(sem) <= 0){
        sys_proc_dequeue_ready(&sem.semdata->queue);

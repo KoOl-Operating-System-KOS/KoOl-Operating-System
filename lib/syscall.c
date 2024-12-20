@@ -316,25 +316,25 @@ void sys_allocate_user_mem(uint32 virtual_address, uint32 size)
 {
 	//Comment the following line before start coding...
 	//panic("not implemented yet");
-
 	syscall(SYS_allocate_user_mem, virtual_address, size, 0, 0, 0);
 }
 
 ////// MS3
 void sys_env_set_priority(int32 envID, int priority)
 {
-
 	syscall(SYS_env_set_priority, envID, priority, 0, 0, 0);
 }
 
-
 uint32 sys_get_value(uint32 idx, uint32* array){
 	return syscall(SYS_get_value, idx, (uint32)array, 0, 0, 0);
+}
+uint32 sys_set_value(uint32 idx, uint32 value, uint32* array){
+	return syscall(SYS_set_value, idx, value, (uint32)array, 0, 0);
+}
 // samphores sys calls
 void sys_queue_initialize(struct Env_Queue* queue ){
 
 	syscall(SYS_queue_initialize,(uint32)queue,0,0,0,0);
-
 }
 
 struct Share* sys_getshare(int32 ownerEnvID, char* semaphoreName ){
@@ -357,4 +357,3 @@ struct Env* sys_getCurrentProc(){
 
 	return (struct Env*)syscall(SYS_current_proc,0,0,0,0,0);
 }
-

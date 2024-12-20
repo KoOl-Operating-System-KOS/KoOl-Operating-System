@@ -172,12 +172,12 @@ void fault_handler(struct Trapframe *tf)
 			}
 
 			if(!marked && fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX){
-				cprintf("Accessing an unmarked page in userheap\n");
+				cprintf("va=%x Accessing an unmarked page in userheap\n", fault_va);
 				env_exit();
 			}
 
 			if (present & !writable){
-				cprintf("Tring to write in a read-only page\n");
+				cprintf("va=%x Trying to write in a read-only page\n", fault_va);
 				env_exit();
 			}
 
