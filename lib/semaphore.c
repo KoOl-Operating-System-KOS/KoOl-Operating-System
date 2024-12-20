@@ -10,7 +10,7 @@ struct semaphore create_semaphore(char *semaphoreName, uint32 value)
     //Your Code is Here...
 
     struct semaphore samphoor;
-    samphoor.semdata = malloc(sizeof(struct __semdata));
+    samphoor.semdata = smalloc(semaphoreName,sizeof(struct __semdata),1);
     samphoor.semdata->count = value;
     samphoor.semdata->lock=0;
     strcpy(samphoor.semdata->name, semaphoreName);
@@ -26,6 +26,7 @@ struct semaphore get_semaphore(int32 ownerEnvID, char* semaphoreName)
 	//COMMENT THE FOLLOWING LINE BEFORE START CODING
 	//panic("get_semaphore is not implemented yet");
 	//Your Code is Here...
+
 	struct semaphore samphoor;
 	samphoor.semdata = (struct __semdata*) sget(ownerEnvID,semaphoreName);
 
