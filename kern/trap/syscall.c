@@ -139,7 +139,7 @@ static int __sys_allocate_page(void *va, int perm)
 	//   allocated!
 
 	int r;
-	struct Env *e = cur_env;
+	struct Env *e = get_cpu_proc();
 
 	//if ((r = envid2env(envid, &e, 1)) < 0)
 	//return r;
@@ -240,7 +240,7 @@ static int __sys_unmap_frame(int32 envid, void *va)
 
 uint32 sys_calculate_required_frames(uint32 start_virtual_address, uint32 size)
 {
-	return calculate_required_frames(cur_env->env_page_directory, start_virtual_address, size);
+	return calculate_required_frames(get_cpu_proc()->env_page_directory, start_virtual_address, size);
 }
 
 uint32 sys_calculate_free_frames()
@@ -293,7 +293,7 @@ void sys_clearFFL()
 /*******************************/
 int sys_pf_calculate_allocated_pages(void)
 {
-	return pf_calculate_allocated_pages(cur_env);
+	return pf_calculate_allocated_pages(get_cpu_proc());
 }
 
 /*******************************/
@@ -304,11 +304,11 @@ void sys_free_user_mem(uint32 virtual_address, uint32 size)
 {
 	if(isBufferingEnabled())
 	{
-		__free_user_mem_with_buffering(cur_env, virtual_address, size);
+		__free_user_mem_with_buffering(get_cpu_proc(), virtual_address, size);
 	}
 	else
 	{
-		free_user_mem(cur_env, virtual_address, size);
+		free_user_mem(get_cpu_proc(), virtual_address, size);
 	}
 	return;
 }
@@ -321,7 +321,7 @@ void sys_allocate_user_mem(uint32 virtual_address, uint32 size)
 		env_exit();
 	}
 
-	allocate_user_mem(cur_env, virtual_address, size);
+	allocate_user_mem(get_cpu_proc(), virtual_address, size);
 
 	return;
 }
@@ -331,14 +331,14 @@ void sys_allocate_chunk(uint32 virtual_address, uint32 size, uint32 perms)
 	//TODO: [PROJECT'24.MS1 - #03] [2] SYSTEM CALLS - Params Validation
 	if (virtual_address == 0 || virtual_address > USER_HEAP_MAX || virtual_address < USER_HEAP_START)
 			env_exit();
-	allocate_chunk(cur_env->env_page_directory, virtual_address, size, perms);
+	allocate_chunk(get_cpu_proc()->env_page_directory, virtual_address, size, perms);
 	return;
 }
 
 //2014
 void sys_move_user_mem(uint32 src_virtual_address, uint32 dst_virtual_address, uint32 size)
 {
-	move_user_mem(cur_env, src_virtual_address, dst_virtual_address, size);
+	move_user_mem(get_cpu_proc(), src_virtual_address, dst_virtual_address, size);
 	return;
 }
 
@@ -413,7 +413,7 @@ struct Env* sys_getCurrentProc(){
 /*******************************/
 int sys_createSharedObject(char* shareName, uint32 size, uint8 isWritable, void* virtual_address)
 {
-	return createSharedObject(cur_env->env_id, shareName, size, isWritable, virtual_address);
+	return createSharedObject(get_cpu_proc()->env_id, shareName, size, isWritable, virtual_address);
 }
 
 int sys_getSizeOfSharedObject(int32 ownerID, char* shareName)
@@ -438,20 +438,20 @@ int sys_freeSharedObject(int32 sharedObjectID, void *startVA)
 //2017
 static int32 sys_getenvid(void)
 {
-	return cur_env->env_id;
+	return get_cpu_proc()->env_id;
 }
 
 //2017
 static int32 sys_getenvindex(void)
 {
 	//return cur_env->env_id;
-	return (cur_env - envs) ;
+	return (get_cpu_proc() - envs) ;
 }
 
 //2017
 static int32 sys_getparentenvid(void)
 {
-	return cur_env->env_parent_id;
+	return get_cpu_proc()->env_parent_id;
 }
 
 // Destroy a given environment whatever its state & DON'T place it in EXIT
@@ -466,7 +466,7 @@ static int sys_destroy_env(int32 envid)
 	struct Env *e;
 	if (envid == 0)
 	{
-		e = cur_env ;
+		e = get_cpu_proc() ;
 	}
 	else if ((r = envid2env(envid, &e, 0)) < 0)
 	{
