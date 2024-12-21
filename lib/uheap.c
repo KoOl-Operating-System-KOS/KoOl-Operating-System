@@ -7,7 +7,7 @@
 #define max(a, b) (a > b ? a : b)
 
 uint32 info_tree[2 * sizeof(uint32) * (1 << (31 - __builtin_clz(NUM_OF_UHEAP_PAGES))) * (1 + (((NUM_OF_UHEAP_PAGES) & (NUM_OF_UHEAP_PAGES-1)) > 0))];
-uint32 shared_id_directory[1<<19];
+uint32 shared_id_directory[NUM_OF_UHEAP_PAGES];
 
 bool init = 0;
 
@@ -216,7 +216,7 @@ void free(void* virtual_address)
 //=================================
 void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 {
-	 if (size == 0) return NULL ;
+	if (size == 0) return NULL ;
 
 	if(!init){
 		init = 1;
