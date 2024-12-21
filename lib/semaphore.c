@@ -43,8 +43,8 @@ void wait_semaphore(struct semaphore sem)
 	sem.semdata->count--;
 	 if(semaphore_count(sem) < 0){
 	    struct Env* env = sys_getCurrentProc();
-	    sys_proc_enqueue_block(env,&sem.semdata->queue);
 	    sem.semdata->lock =0;
+	    sys_proc_enqueue_block(env,&sem.semdata->queue);
 	  }
       sem.semdata->lock =0;
 }
@@ -60,7 +60,6 @@ void signal_semaphore(struct semaphore sem)
     sem.semdata->count++;
     if(semaphore_count(sem) <= 0){
        sys_proc_dequeue_ready(&sem.semdata->queue);
-       sem.semdata->lock = 0;
     }
     sem.semdata->lock = 0;
 }

@@ -460,16 +460,31 @@ void env_start(void)
 //===============================
 // Frees environment "e" and all memory it uses.
 //
+
 void env_free(struct Env *e)
 {
-	/*REMOVE THIS LINE BEFORE START CODING*/
-	return;
-	/**************************************/
+	struct WorkingSetElement* cur;
+	LIST_FOREACH(cur,&e->page_WS_list)
+	{
+		uint32* ptr_page_table;
+		bool flag = 1;
 
-	//[PROJECT'24.MS3] BONUS [EXIT ENV] env_free
-	// your code is here, remove the panic and write your code
-	panic("env_free() is not implemented yet...!!");
+		get_page_table(e->env_page_directory, cur->virtual_address, &ptr_page_table);
 
+		kfree((void*)cur->virtual_address);
+
+		for(int i = 0; i < PAGE_SIZE / 4; i++) {
+			if(ptr_page_table[i] & PERM_PRESENT) {
+				flag = 0;
+				break;
+			}
+		}
+
+		if(flag) kfree((void*)ptr_page_table);
+		kfree((void*)cur);
+	}
+	kfree((void*)e->env_page_directory);
+	delete_user_kern_stack(e);
 
 	// [9] remove this program from the page file
 	/*(ALREADY DONE for you)*/
@@ -912,7 +927,14 @@ void delete_user_kern_stack(struct Env* e)
 #if USE_KHEAP
 	//[PROJECT'24.MS3] BONUS
 	// Write your code here, remove the panic and write your code
-	panic("delete_user_kern_stack() is not implemented yet...!!");
+	//panic("delete_user_kern_stack() is not implemented yet...!!");
+	uint32* page_table = NULL;
+	uint32 kstack = (uint32)e->kstack;
+	get_page_table(e->env_page_directory, kstack, &page_table);
+
+	page_table[PTX(kstack)] = page_table[PTX(kstack)] | (PERM_PRESENT);
+
+	kfree((void*)kstack);
 
 	//Delete the allocated space for the user kernel stack of this process "e"
 	//remember to delete the bottom GUARD PAGE (i.e. not mapped)
