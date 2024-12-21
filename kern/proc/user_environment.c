@@ -483,6 +483,12 @@ void env_free(struct Env *e)
 		if(flag) kfree((void*)ptr_page_table);
 		kfree((void*)cur);
 	}
+	for(int i=0;i<NUM_OF_UHEAP_PAGES;i++){
+		if(e->shared_id_directory[i]!=-1){
+			freeSharedObject(e->shared_id_directory[i],(void*)(i*PAGE_SIZE+(e->uheap_hard_limit + PAGE_SIZE)));
+		}
+	}
+	kfree((void*)e->shared_id_directory);
 	kfree((void*)e->env_page_directory);
 	delete_user_kern_stack(e);
 
