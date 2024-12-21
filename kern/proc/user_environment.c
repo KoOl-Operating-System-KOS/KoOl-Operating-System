@@ -463,34 +463,34 @@ void env_start(void)
 
 void env_free(struct Env *e)
 {
-//	struct WorkingSetElement* cur;
-//	LIST_FOREACH(cur,&e->page_WS_list)
-//	{
-//		uint32* ptr_page_table;
-//		bool flag = 1;
-//
-//		get_page_table(e->env_page_directory, cur->virtual_address, &ptr_page_table);
-//
-//		kfree((void*)cur->virtual_address);
-//
-//		for(int i = 0; i < PAGE_SIZE / 4; i++) {
-//			if(ptr_page_table[i] & PERM_PRESENT) {
-//				flag = 0;
-//				break;
-//			}
-//		}
-//
-//		if(flag) kfree((void*)ptr_page_table);
-//		kfree((void*)cur);
-//	}
-//	for(int i=0;i<NUM_OF_UHEAP_PAGES;i++){
-//		if(e->shared_id_directory[i]!=-1){
-//			freeSharedObject(e->shared_id_directory[i],(void*)(i*PAGE_SIZE+(e->uheap_hard_limit + PAGE_SIZE)));
-//		}
-//	}
-//	kfree((void*)e->shared_id_directory);
-//	kfree((void*)e->env_page_directory);
-//	delete_user_kern_stack(e);
+	struct WorkingSetElement* cur;
+	LIST_FOREACH(cur,&e->page_WS_list)
+	{
+		uint32* ptr_page_table;
+		bool flag = 1;
+
+		get_page_table(e->env_page_directory, cur->virtual_address, &ptr_page_table);
+
+		kfree((void*)cur->virtual_address);
+
+		for(int i = 0; i < PAGE_SIZE / 4; i++) {
+			if(ptr_page_table[i] & PERM_PRESENT) {
+				flag = 0;
+				break;
+			}
+		}
+
+		if(flag) kfree((void*)ptr_page_table);
+		kfree((void*)cur);
+	}
+	for(int i=0;i<NUM_OF_UHEAP_PAGES;i++){
+		if(e->shared_id_directory[i]!=-1){
+			freeSharedObject(e->shared_id_directory[i],(void*)(i*PAGE_SIZE+(e->uheap_hard_limit + PAGE_SIZE)));
+		}
+	}
+	kfree((void*)e->shared_id_directory);
+	kfree((void*)e->env_page_directory);
+	delete_user_kern_stack(e);
 
 	// [9] remove this program from the page file
 	/*(ALREADY DONE for you)*/
