@@ -328,9 +328,11 @@ void sys_env_set_priority(int32 envID, int priority)
 uint32 sys_get_value(uint32 idx, uint32* array){
 	return syscall(SYS_get_value, idx, (uint32)array, 0, 0, 0);
 }
-uint32 sys_set_value(uint32 idx, uint32 value, uint32* array){
-	return syscall(SYS_set_value, idx, value, (uint32)array, 0, 0);
+
+void sys_set_value(uint32 idx, uint32 value, uint32* array){
+	syscall(SYS_set_value, idx, value, (uint32)array, 0, 0);
 }
+
 // samphores sys calls
 void sys_queue_initialize(struct Env_Queue* queue ){
 

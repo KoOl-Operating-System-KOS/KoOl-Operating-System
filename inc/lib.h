@@ -95,6 +95,10 @@ void sys_proc_enqueue_block(struct Env* e,struct Env_Queue* queue);
 void sys_proc_dequeue_ready(struct Env_Queue* queue);
 struct Env* sys_getCurrentProc();
 
+//array setters and getters
+uint32 sys_get_value(uint32 idx, uint32* array);
+void sys_set_value(uint32 idx, uint32 value, uint32* array);
+
 //Sharing
 //2017
 int 	sys_createSharedObject(char* shareName, uint32 size, uint8 isWritable, void* virtual_address);

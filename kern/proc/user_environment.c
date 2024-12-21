@@ -961,6 +961,9 @@ void initialize_uheap_dynamic_allocator(struct Env* e, uint32 daStart, uint32 da
 	e->uheap_segment_break = daStart;
 	e->uheap_hard_limit = daLimit;
 	e->uheap_pages_count = (1 << (31 - __builtin_clz(pages_count))) * (1 + (((pages_count) & (pages_count-1)) > 0));
+	e->shared_id_directory = kmalloc(NUM_OF_UHEAP_PAGES * sizeof(uint32)); //KFREE When env free
+
+	memset(e->shared_id_directory, -1, NUM_OF_UHEAP_PAGES * sizeof(uint32));
 
 	initialize_dynamic_allocator(daStart, 0);
 }

@@ -126,6 +126,7 @@ struct Env {
 	uint32 uheap_segment_break;
 	uint32 uheap_hard_limit;
 	uint32 uheap_pages_count;
+	uint32* shared_id_directory;
 
 	//=======================================================================
 	//for page file management

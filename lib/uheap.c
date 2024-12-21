@@ -7,7 +7,6 @@
 #define max(a, b) (a > b ? a : b)
 
 uint32 info_tree[2 * sizeof(uint32) * (1 << (31 - __builtin_clz(NUM_OF_UHEAP_PAGES))) * (1 + (((NUM_OF_UHEAP_PAGES) & (NUM_OF_UHEAP_PAGES-1)) > 0))];
-uint32 shared_id_directory[NUM_OF_UHEAP_PAGES];
 
 bool init = 0;
 
@@ -174,7 +173,6 @@ void* malloc(uint32 size)
 	if(!init){
 		init = 1;
 		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
-		memset(shared_id_directory, -1, sizeof shared_id_directory);
 	}
 
 	if(size <= DYN_ALLOC_MAX_BLOCK_SIZE)
@@ -202,7 +200,6 @@ void free(void* virtual_address)
 	if(!init){
 		init = 1;
 		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
-		memset(shared_id_directory, -1, sizeof shared_id_directory);
 	}
 
 	if((uint32)virtual_address <= myEnv->uheap_segment_break-(DYN_ALLOC_MIN_BLOCK_SIZE+META_DATA_SIZE/2))
@@ -221,7 +218,6 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 	if(!init){
 		init = 1;
 		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
-		memset(shared_id_directory, -1, sizeof shared_id_directory);
 	}
 
 	 uint32 pages_count = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
@@ -240,7 +236,7 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 	 }
 
 	 uint32 indx = address_to_page(va);
-	 shared_id_directory[indx] = ret;
+	 sys_set_value(indx, ret, myEnv->shared_id_directory);
 
 	 return va;
 }
@@ -261,7 +257,6 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 	if(!init){
 		init = 1;
 		update_node(TREE_get_node(0), (USER_HEAP_MAX - (myEnv->uheap_hard_limit + PAGE_SIZE)) / PAGE_SIZE, 0);
-		memset(shared_id_directory, -1, sizeof shared_id_directory);
 	}
 
 
@@ -278,7 +273,8 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 		 return NULL;
 	 }
 	 uint32 indx = address_to_page(va);
-	 shared_id_directory[indx] = ret;
+	 sys_set_value(indx, ret, myEnv->shared_id_directory);
+
 	 return va;
 }
 
@@ -301,12 +297,12 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 void sfree(void* virtual_address)
 {
 	uint32 indx = address_to_page(virtual_address);
-	uint32 value = shared_id_directory[indx];
+	uint32 value = sys_get_value(indx, myEnv->shared_id_directory);
 	if(value == -1)
 		panic("Invalid sfree address\n");
 	if(sys_freeSharedObject(value, virtual_address) == E_NO_SHARE)
 		panic("No Share found\n");
-	 shared_id_directory[indx] = -1;
+	 sys_set_value(indx, -1, myEnv->shared_id_directory);
 }
 
 

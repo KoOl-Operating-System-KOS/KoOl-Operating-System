@@ -360,6 +360,14 @@ void sys_env_set_priority(int32 envID, int priority)
 	env_set_priority( envID, priority);
 }
 
+uint32 sys_get_value(uint32 idx, uint32* array){
+	return array[idx];
+}
+
+void sys_set_value(uint32 idx, uint32 value, uint32* array){
+	array[idx] = value;
+}
+
 /*******************************/
 /* SEMAPHORES SYSTEM CALLS */
 /*******************************/
@@ -747,6 +755,13 @@ uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uin
 
 	case SYS_utilities:
 		sys_utilities((char*)a1, (int)a2);
+		return 0;
+
+	case SYS_get_value:
+		return sys_get_value(a1, (uint32*)a2);
+
+	case SYS_set_value:
+		sys_set_value(a1, a2, (uint32*)a3);
 		return 0;
 
 	case NSYSCALLS:
