@@ -56,6 +56,7 @@ LIST_HEAD(Share_List, Share);		// Declares 'struct Share_List'
 int createSharedObject(int32 ownerID, char* shareName, uint32 size, uint8 isWritable, void* virtual_address);
 int getSizeOfSharedObject(int32 ownerID, char* shareName);
 int getSharedObject(int32 ownerID, char* shareName, void* virtual_address);
+void free_share(struct Share* ptrShare);
 int freeSharedObject(int32 sharedObjectID, void *startVA);
 struct Share* get_share(int32 ownerID, char* name);
 int createSharedObject(int32 ownerID, char* shareName, uint32 size, uint8 isWritable, void* virtual_address);

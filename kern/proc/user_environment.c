@@ -461,35 +461,100 @@ void env_start(void)
 // Frees environment "e" and all memory it uses.
 //
 
-void env_free(struct Env *e)
+int freeSharedObj(int32 sharedObjectID, void *startVA, struct Env* myenv)
 {
-	struct WorkingSetElement* cur;
-	LIST_FOREACH(cur,&e->page_WS_list)
-	{
-		uint32* ptr_page_table;
+	if (!holding_spinlock(&AllShares.shareslock))
+		acquire_spinlock(&AllShares.shareslock);
+
+	struct Share* share = NULL;
+
+	LIST_FOREACH(share, &AllShares.shares_list){
+
+		if(share->ID == sharedObjectID){
+			if (holding_spinlock(&AllShares.shareslock))
+				release_spinlock(&AllShares.shareslock);
+			break;
+		}
+	}
+
+	if(share == NULL){
+		if (!holding_spinlock(&AllShares.shareslock))
+			release_spinlock(&AllShares.shareslock);
+		return E_NO_SHARE;
+	}
+
+	uint32 current_page = (uint32)startVA;
+
+	uint32 * ptr_page_table;
+
+	uint32 frames_count = ROUNDUP(share->size , PAGE_SIZE) / PAGE_SIZE;
+	for(int i = 0; i < frames_count; i++) {
+		get_page_table(myenv->env_page_directory , current_page , &ptr_page_table);
+		unmap_frame(myenv->env_page_directory , current_page);
 		bool flag = 1;
-
-		get_page_table(e->env_page_directory, cur->virtual_address, &ptr_page_table);
-
-		kfree((void*)cur->virtual_address);
+		uint32* table = ptr_page_table;
 
 		for(int i = 0; i < PAGE_SIZE / 4; i++) {
-			if(ptr_page_table[i] & PERM_PRESENT) {
+			if(table[i] & PERM_PRESENT) {
 				flag = 0;
 				break;
 			}
 		}
-
-		if(flag) kfree((void*)ptr_page_table);
-		kfree((void*)cur);
+		if(flag) {
+			pd_clear_page_dir_entry(myenv->env_page_directory, current_page);
+			kfree((void*)ptr_page_table);
+		}
+		current_page += PAGE_SIZE;
 	}
-	for(int i=0;i<NUM_OF_UHEAP_PAGES;i++){
-		if(e->shared_id_directory[i]!=-1){
-			freeSharedObject(e->shared_id_directory[i],(void*)(i*PAGE_SIZE+(e->uheap_hard_limit + PAGE_SIZE)));
+
+	if (!holding_spinlock(&AllShares.shareslock))
+		acquire_spinlock(&AllShares.shareslock);
+
+	share->references--;
+	if(share->references==0)
+		free_share(share);
+	tlbflush();
+
+	if (holding_spinlock(&AllShares.shareslock))
+		release_spinlock(&AllShares.shareslock);
+
+	return 0;
+
+}
+
+void env_free(struct Env *e)
+{
+	for(int i = 0; i < NUM_OF_UHEAP_PAGES; i++){
+		if(e->shared_id_directory[i] != -1){
+			freeSharedObj(e->shared_id_directory[i], (void*)(i*PAGE_SIZE+(e->uheap_hard_limit + PAGE_SIZE)), e);
 		}
 	}
+
+	struct WorkingSetElement* cur;
+	LIST_FOREACH(cur,&e->page_WS_list)
+	{
+		uint32* ptr_page_table;
+		get_page_table(e->env_page_directory, cur->virtual_address, &ptr_page_table);
+
+		struct FrameInfo *frame = get_frame_info(e->env_page_directory, cur->virtual_address, &ptr_page_table);
+		free_frame(frame);
+		unmap_frame(e->env_page_directory, cur->virtual_address);
+
+		kfree((void*)cur);
+	}
+
+	//for(uint32 table = 0; table < PAGE_SIZE / 4; table++){
+	//	  uint32 page_directory_entry = e->env_page_directory[table];
+	//	  if((page_directory_entry & PERM_PRESENT) == PERM_PRESENT){
+	//	  	  uint32 pa = EXTRACT_ADDRESS(page_directory_entry);
+	//	  	  uint32 va = kheap_virtual_address(pa);
+	//		  struct FrameInfo* ptr_frame_info = to_frame_info(pa);
+	//		  decrement_references(ptr_frame_info);
+	//	  }
+	//}
+
 	kfree((void*)e->shared_id_directory);
-	kfree((void*)e->env_page_directory);
+	//kfree((void*)e->env_page_directory);
 	delete_user_kern_stack(e);
 
 	// [9] remove this program from the page file
