@@ -222,7 +222,7 @@ void* TREE_realloc(uint32 page_idx, uint32 new_size){
 	set_info(cur, new_count, 1);
 
 	if(old_count + next_count - new_count > 0)
-		update_node(page_idx + new_count, old_count + next_count - new_count, 0);
+		update_node(cur + new_count, old_count + next_count - new_count, 0);
 
 	return (void*)(page_allocator_start + page_idx * PAGE_SIZE);
 }
